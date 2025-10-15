@@ -320,9 +320,10 @@ export const runtime = "nodejs";
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 
-export default async function ProductPage({ params }: { params: { id: string } }) {
+export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const product = await prisma.product.findUnique({
-    where: { id: params.id, active: true, visibleOnMarketplace: true },
+    where: { id, active: true, visibleOnMarketplace: true },
     include: {
       images: { select: { id: true }, orderBy: { id: "asc" } },
       prices: {
@@ -393,9 +394,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
         <AddToCart
           productId={product.id}
           name={product.name}
-          allowBox={product.allowSellBox && inStock}
-          allowPack={product.allowSellPack && inStock}
-          allowPiece={product.allowSellPiece && inStock}
+          allowBox={product.allowSellBox && inStock && price?.sellPerBox != null}
+          allowPack={product.allowSellPack && inStock && price?.sellPerPack != null}
+          allowPiece={product.allowSellPiece && inStock && price?.sellPerPiece != null}
         />
       </div>
     </div>

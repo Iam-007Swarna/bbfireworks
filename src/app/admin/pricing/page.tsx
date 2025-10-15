@@ -364,9 +364,9 @@
 // }
 
 import { prisma } from "@/lib/prisma";
-import { saveRow } from "./actions";
-import RowForm from "./RowForm";
 import { avgCostPiece } from "@/lib/cost";
+import PricingClient from "./PricingClient";
+import PricingRow from "./PricingRow";
 
 export const runtime = "nodejs";
 
@@ -380,15 +380,6 @@ type Product = {
   allowSellPack: boolean;
   allowSellPiece: boolean;
 };
-
-const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
-
-function fmtMoney(n: number | null | undefined, digits = 2) {
-  if (n == null) return "—";
-  // For tiny piece prices, show both currency and fixed if helpful
-  if (digits > 2) return `${inr.format(n)} (${n.toFixed(digits)})`;
-  return inr.format(n);
-}
 
 export default async function PricingPage() {
   const products = (await prisma.product.findMany({
@@ -436,95 +427,54 @@ export default async function PricingPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Pricing</h1>
-      <p className="text-sm opacity-80">
-        Set active prices per channel. Leaving a field blank disables that unit for that channel.
-        Margin preview uses weighted average purchase cost per piece.
-      </p>
+      <PricingClient>
+        <div className="overflow-auto">
+          <table className="min-w-[900px] text-sm">
+            <thead className="text-left">
+              <tr>
+                <th className="p-2">Product</th>
+                <th className="p-2">SKU</th>
+                <th className="p-2">Cost • piece/pack/box (₹)</th>
+                <th className="p-2">Margin % (marketplace)</th>
+                <th className="p-2" colSpan={3}>Pricing & Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p) => {
+                const mk = map.get(priceKey(p.id, "marketplace"));
+                const rt = map.get(priceKey(p.id, "retail"));
+                const cPiece = avgCost.get(p.id) ?? null;
+                const cPack = cPiece != null ? cPiece * p.piecesPerPack : null;
+                const cBox = cPiece != null ? cPiece * p.piecesPerPack * p.packsPerBox : null;
 
-      <div className="overflow-auto">
-        <table className="min-w-[900px] text-sm">
-          <thead className="text-left">
-            <tr>
-              <th className="p-2">Product</th>
-              <th className="p-2">SKU</th>
-              <th className="p-2">Cost • piece/pack/box (₹)</th>
-              <th className="p-2">Marketplace • box/pack/piece</th>
-              <th className="p-2">Retail • box/pack/piece</th>
-              <th className="p-2">Margin % (marketplace)</th>
-              <th className="p-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => {
-              const mk = map.get(priceKey(p.id, "marketplace"));
-              const rt = map.get(priceKey(p.id, "retail"));
-              const cPiece = avgCost.get(p.id) ?? null;
-              const cPack = cPiece != null ? cPiece * p.piecesPerPack : null;
-              const cBox = cPiece != null ? cPiece * p.piecesPerPack * p.packsPerBox : null;
+                const mkBox = mk?.sellPerBox != null ? Number(mk.sellPerBox) : null;
+                const mkPack = mk?.sellPerPack != null ? Number(mk.sellPerPack) : null;
+                const mkPiece = mk?.sellPerPiece != null ? Number(mk.sellPerPiece) : null;
 
-              const mkBox = mk?.sellPerBox != null ? Number(mk.sellPerBox) : null;
-              const mkPack = mk?.sellPerPack != null ? Number(mk.sellPerPack) : null;
-              const mkPiece = mk?.sellPerPiece != null ? Number(mk.sellPerPiece) : null;
+                const rtBox = rt?.sellPerBox != null ? Number(rt.sellPerBox) : null;
+                const rtPack = rt?.sellPerPack != null ? Number(rt.sellPerPack) : null;
+                const rtPiece = rt?.sellPerPiece != null ? Number(rt.sellPerPiece) : null;
 
-              const marginPct = (sell: number | null, cost: number | null) => {
-                if (sell == null || cost == null || sell <= 0) return "—";
-                const m = ((sell - cost) / sell) * 100;
-                return `${m.toFixed(1)}%`;
-              };
-
-              return (
-                <tr key={p.id} className="align-top">
-                  <td className="p-2">{p.name}</td>
-                  <td className="p-2">{p.sku}</td>
-
-                  <td className="p-2">
-                    <div className="opacity-80">piece: <b>{fmtMoney(cPiece, 4)}</b></div>
-                    <div className="opacity-80">pack: <b>{fmtMoney(cPack)}</b></div>
-                    <div className="opacity-80">box: <b>{fmtMoney(cBox)}</b></div>
-                  </td>
-
-                  <td className="p-2">
-                    <RowForm
-                      productId={p.id}
-                      channel="marketplace"
-                      defaults={{ box: mkBox, pack: mkPack, piece: mkPiece }}
-                      allow={{ box: p.allowSellBox, pack: p.allowSellPack, piece: p.allowSellPiece }}
-                    />
-                  </td>
-
-                  <td className="p-2">
-                    <RowForm
-                      productId={p.id}
-                      channel="retail"
-                      defaults={{
-                        box: rt?.sellPerBox != null ? Number(rt.sellPerBox) : null,
-                        pack: rt?.sellPerPack != null ? Number(rt.sellPerPack) : null,
-                        piece: rt?.sellPerPiece != null ? Number(rt.sellPerPiece) : null,
-                      }}
-                      allow={{ box: p.allowSellBox, pack: p.allowSellPack, piece: p.allowSellPiece }}
-                    />
-                  </td>
-
-                  <td className="p-2">
-                    <div>box: {marginPct(mkBox, cBox)}</div>
-                    <div>pack: {marginPct(mkPack, cPack)}</div>
-                    <div>piece: {marginPct(mkPiece, cPiece)}</div>
-                  </td>
-
-                  <td className="p-2">
-                    <form action={saveRow}>
-                      <input type="hidden" name="productId" value={p.id} />
-                      {/* RowForm inputs are named mk_* and rt_* and live inside this form, so no client “collector” needed */}
-                      <button className="btn">Save</button>
-                    </form>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                return (
+                  <PricingRow
+                    key={p.id}
+                    product={p}
+                    cPiece={cPiece}
+                    cPack={cPack}
+                    cBox={cBox}
+                    mkBox={mkBox}
+                    mkPack={mkPack}
+                    mkPiece={mkPiece}
+                    rtBox={rtBox}
+                    rtPack={rtPack}
+                    rtPiece={rtPiece}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </PricingClient>
     </div>
   );
 }

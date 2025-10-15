@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { addToCart } from "./useCart";
 import { Button } from "@/components/ui/Button";
@@ -22,15 +23,29 @@ export default function AddToCart({
   allowPiece,
   defaultUnit,
 }: Props) {
+  // Check if any unit is available
+  const hasAnyUnit = allowBox || allowPack || allowPiece;
+
   const [unit, setUnit] = useState<"box" | "pack" | "piece">(
     defaultUnit ?? (allowPack ? "pack" : allowPiece ? "piece" : "box")
   );
   const [qty, setQty] = useState<number>(1);
 
+  // If no units are available (out of stock), show disabled state
+  if (!hasAnyUnit) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-sm text-red-600 dark:text-red-400 font-medium">
+          Out of Stock - Cannot add to cart
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select
-        className="input w-28"
+        className="input w-28 dark:bg-black dark:[&>option]:bg-black"
         value={unit}
         onChange={(e) => setUnit(e.target.value as "box" | "pack" | "piece")}
       >
@@ -54,10 +69,10 @@ export default function AddToCart({
         <ShoppingCart size={16} />
         Add to cart
       </Button>
-      <a className="btn flex items-center gap-1.5" href="/cart">
+      <Link href="/cart" className="btn flex items-center gap-1.5">
         <ShoppingCart size={16} />
         View cart
-      </a>
+      </Link>
     </div>
   );
 }

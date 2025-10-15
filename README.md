@@ -30,38 +30,98 @@ BB Fireworks is a comprehensive business management system built for a fireworks
 bbfireworks/
 ├── src/
 │   ├── app/                      # Next.js App Router pages
+│   │   ├── (public)/             # Public routes group
+│   │   │   ├── cart/             # Shopping cart page
+│   │   │   │   └── CartClient.tsx
+│   │   │   ├── checkout/         # WhatsApp checkout flow
+│   │   │   │   └── CartToHidden.tsx
+│   │   │   ├── products/[id]/    # Product detail pages
+│   │   │   ├── layout.tsx        # Public layout with header/footer
+│   │   │   └── page.tsx          # Homepage/Marketplace
 │   │   ├── admin/                # Admin dashboard routes
-│   │   │   ├── inventory/        # Stock management
-│   │   │   ├── invoices/         # Invoice management
+│   │   │   ├── design/           # Design system/theme settings
+│   │   │   ├── inventory/        # Stock management & ledger
+│   │   │   ├── invoices/         # Invoice management & PDF generation
+│   │   │   │   └── [id]/
 │   │   │   ├── orders/           # Order management
-│   │   │   ├── pricing/          # Multi-channel pricing
+│   │   │   │   └── [id]/
+│   │   │   ├── pricing/          # Multi-channel pricing with actions
+│   │   │   │   ├── actions.ts
+│   │   │   │   └── RowForm.tsx
 │   │   │   ├── products/         # Product CRUD
-│   │   │   └── purchases/        # Purchase orders
+│   │   │   │   ├── new/
+│   │   │   │   └── [id]/
+│   │   │   ├── purchases/        # Purchase orders
+│   │   │   │   ├── new/
+│   │   │   │   │   ├── actions.ts
+│   │   │   │   │   └── LinesBuilder.tsx
+│   │   │   ├── rates/            # Supplier rate cards
+│   │   │   ├── settings/         # Application settings
+│   │   │   ├── layout.tsx        # Admin layout with sidebar
+│   │   │   └── page.tsx          # Admin dashboard
 │   │   ├── api/                  # API routes
-│   │   │   ├── auth/             # Authentication endpoints
-│   │   │   ├── images/           # Product image serving
-│   │   │   ├── invoices/         # Invoice PDF generation
-│   │   │   └── upload/           # Image upload
+│   │   │   ├── auth/
+│   │   │   │   └── [...nextauth]/  # NextAuth endpoints
+│   │   │   ├── images/[id]/      # Product image serving
+│   │   │   ├── invoices/[id]/pdf/  # Invoice PDF generation
+│   │   │   └── upload/
+│   │   │       └── product-image/  # Image upload endpoint
 │   │   ├── auth/                 # Authentication pages
-│   │   ├── cart/                 # Shopping cart
-│   │   ├── checkout/             # WhatsApp checkout flow
+│   │   │   ├── login/
+│   │   │   └── layout.tsx
 │   │   ├── pos/                  # Point of sale system
-│   │   ├── products/             # Product detail pages
-│   │   └── page.tsx              # Homepage/Marketplace
+│   │   │   ├── POSClient.tsx     # Main POS interface
+│   │   │   ├── actions.ts        # POS server actions
+│   │   │   ├── helpers.ts
+│   │   │   └── page.tsx
+│   │   ├── globals.css           # Global styles & Tailwind
+│   │   ├── layout.tsx            # Root layout
+│   │   └── favicon.ico
 │   ├── components/               # Reusable React components
+│   │   ├── admin/                # Admin-specific components
+│   │   │   ├── ImageUploader.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   └── Topbar.tsx
+│   │   ├── auth/                 # Authentication components
+│   │   │   └── SignOutButton.tsx
 │   │   ├── cart/                 # Cart functionality
-│   │   └── ui/                   # UI primitives
+│   │   │   ├── AddToCart.tsx
+│   │   │   ├── CartIcon.tsx
+│   │   │   └── useCart.ts
+│   │   ├── product/              # Product display components
+│   │   ├── ui/                   # UI primitives
+│   │   │   ├── Badge.tsx
+│   │   │   ├── Button.tsx
+│   │   │   ├── Card.tsx
+│   │   │   └── Field.tsx
+│   │   ├── PublicHeader.tsx      # Public site header
+│   │   ├── SessionProviderWrapper.tsx
+│   │   └── theme-toggle.tsx      # Dark mode toggle
 │   ├── lib/                      # Utility libraries
+│   │   ├── auth/                 # Auth configuration
+│   │   ├── cn.ts                 # Class name utility
+│   │   ├── cost.ts               # Cost calculation helpers
+│   │   ├── fifo.ts               # FIFO inventory costing
+│   │   ├── invoice.ts            # Invoice utilities
+│   │   ├── pdf.ts                # PDF generation (A4 format)
+│   │   ├── pricing.ts            # Pricing calculations
 │   │   ├── prisma.ts             # Prisma client singleton
-│   │   ├── pdf.ts                # PDF generation utilities
 │   │   ├── stock.ts              # Stock calculation helpers
 │   │   ├── units.ts              # Unit conversion (box/pack/piece)
 │   │   └── whatsapp.ts           # WhatsApp integration
-│   └── types/                    # TypeScript type definitions
+│   ├── types/                    # TypeScript type definitions
+│   │   └── pdfkit-standalone.d.ts
+│   ├── auth.config.ts            # NextAuth configuration
+│   └── middleware.ts             # Next.js middleware
 ├── prisma/
+│   ├── migrations/               # Database migrations
 │   ├── schema.prisma             # Database schema
 │   └── seed.ts                   # Database seed script
 ├── public/                       # Static assets
+├── .env                          # Environment variables (gitignored)
+├── next.config.ts                # Next.js configuration
+├── tailwind.config.ts            # Tailwind CSS configuration
+├── tsconfig.json                 # TypeScript configuration
 └── package.json                  # Dependencies and scripts
 ```
 

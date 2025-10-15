@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { verify as verifyPassword } from "@/lib/auth/hash";
+import { auth } from "@/auth.config";
 
 // Helpers
 function numOrNull(v: FormDataEntryValue | null): number | null {
@@ -84,4 +86,76 @@ export async function saveRow(formData: FormData) {
   });
 
   revalidatePath("/admin/pricing");
+}
+
+export async function verifyPasswordForCostEdit(formData: FormData) {
+  const password = String(formData.get("password") || "");
+
+  // Get current user from NextAuth session
+  const session = await auth();
+
+  if (!session?.user?.email) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    // Fetch user and verify password
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { passwordHash: true },
+    });
+
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    const isValid = await verifyPassword(password, user.passwordHash);
+
+    if (isValid) {
+      return { success: true };
+    } else {
+      return { success: false, error: "Invalid password" };
+    }
+  } catch {
+    return { success: false, error: "Verification failed" };
+  }
+}
+
+/**
+ * Save a manual cost adjustment by creating a stock ledger entry.
+ * This allows overriding the weighted average cost calculation.
+ */
+export async function saveCost(formData: FormData) {
+  const productId = String(formData.get("productId") || "");
+  const costPerPiece = numOrNull(formData.get("costPerPiece"));
+
+  if (!productId || costPerPiece === null || costPerPiece < 0) {
+    return { success: false, error: "Invalid input" };
+  }
+
+  // Get current user from NextAuth session
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    // Create a stock ledger adjustment entry with zero delta
+    // This records the new cost without changing inventory
+    await prisma.stockLedger.create({
+      data: {
+        productId,
+        deltaPieces: 0,
+        unitCostPiece: costPerPiece,
+        sourceType: "adjust",
+        sourceId: `cost-override-${Date.now()}`,
+      },
+    });
+
+    revalidatePath("/admin/pricing");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to save cost:", error);
+    return { success: false, error: "Failed to save cost" };
+  }
 }

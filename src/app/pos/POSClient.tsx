@@ -16,6 +16,8 @@ type Row = {
   stockPieces: number;
   piecesPerPack: number;
   packsPerBox: number;
+  allow: { box: boolean; pack: boolean; piece: boolean };
+  price: { box: number | null; pack: number | null; piece: number | null };
 };
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
@@ -45,6 +47,8 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
         stockPieces: p.stockPieces,
         piecesPerPack: p.piecesPerPack,
         packsPerBox: p.packsPerBox,
+        allow: p.allow,
+        price: p.price,
       },
     ]);
   }
@@ -116,7 +120,7 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                       SKU: {p.sku}
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {p.allow.box && (
+                      {p.allow.box && p.price.box != null && (
                         <button
                           className="btn text-xs flex-1"
                           onClick={() => addProduct(p.id, "box")}
@@ -124,7 +128,7 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                           + Box
                         </button>
                       )}
-                      {p.allow.pack && (
+                      {p.allow.pack && p.price.pack != null && (
                         <button
                           className="btn text-xs flex-1"
                           onClick={() => addProduct(p.id, "pack")}
@@ -132,7 +136,7 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                           + Pack
                         </button>
                       )}
-                      {p.allow.piece && (
+                      {p.allow.piece && p.price.piece != null && (
                         <button
                           className="btn text-xs flex-1"
                           onClick={() => addProduct(p.id, "piece")}
@@ -230,17 +234,28 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                           <select
                             className="input"
                             value={r.unit}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const newUnit = e.target.value as Unit;
+                              const newPrice =
+                                newUnit === "box" ? r.price.box ?? 0 :
+                                newUnit === "pack" ? r.price.pack ?? 0 :
+                                r.price.piece ?? 0;
                               setRows((rs) =>
                                 rs.map((x, idx) =>
-                                  idx === i ? { ...x, unit: e.target.value as Unit } : x
+                                  idx === i ? { ...x, unit: newUnit, pricePerUnit: newPrice } : x
                                 )
-                              )
-                            }
+                              );
+                            }}
                           >
-                            <option value="box">Box</option>
-                            <option value="pack">Pack</option>
-                            <option value="piece">Piece</option>
+                            <option value="box" disabled={!r.allow.box || r.price.box == null}>
+                              Box {r.price.box == null ? "(No price)" : ""}
+                            </option>
+                            <option value="pack" disabled={!r.allow.pack || r.price.pack == null}>
+                              Pack {r.price.pack == null ? "(No price)" : ""}
+                            </option>
+                            <option value="piece" disabled={!r.allow.piece || r.price.piece == null}>
+                              Piece {r.price.piece == null ? "(No price)" : ""}
+                            </option>
                           </select>
                         </td>
                         <td className="p-3">
