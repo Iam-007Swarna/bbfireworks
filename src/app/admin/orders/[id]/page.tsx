@@ -113,9 +113,10 @@ async function cancelOrder(formData: FormData) {
 
 /* ---------- page ---------- */
 
-export default async function OrderDetail({ params }: { params: { id: string } }) {
+export default async function OrderDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const row = await prisma.order.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       customer: true,
       lines: { include: { product: { select: { name: true, sku: true, piecesPerPack: true, packsPerBox: true } } } },
