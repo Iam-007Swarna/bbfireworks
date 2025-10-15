@@ -162,7 +162,8 @@ export async function finalizePOS(formData: FormData) {
         l.unit as Unit,
         p.piecesPerPack,
         p.packsPerBox,
-        order.id // sourceId is the order ID
+        order.id, // sourceId is the order ID
+        tx // Pass transaction client to ensure all operations are atomic
       );
       if (!Number.isFinite(needPieces) || needPieces <= 0) throw new Error("FIFO consumption failed");
       subtotal += l.qty * l.pricePerUnit;

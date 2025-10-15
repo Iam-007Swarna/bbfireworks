@@ -1,4 +1,5 @@
-import PDFDocument from "pdfkit";
+// Use standalone version that doesn't require filesystem access
+import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { prisma } from "@/lib/prisma";
 
 type Line = { name: string; unit: "box"|"pack"|"piece"; qty: number; price: number; total: number };
@@ -18,9 +19,13 @@ function currency(n: number, digits = 2) {
 }
 
 function makeDoc(data: InvoiceData, businessName: string, businessPhone?: string) {
-  const doc = new PDFDocument({ margin: 36 }); // 0.5" margins
+  const doc = new PDFDocument({
+    margin: 36,
+    autoFirstPage: true,
+    bufferPages: true
+  });
   const chunks: Buffer[] = [];
-  doc.on("data", (d) => chunks.push(d));
+  doc.on("data", (d: Buffer) => chunks.push(d));
   const done = new Promise<Buffer>((resolve) => {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
   });

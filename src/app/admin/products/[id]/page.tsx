@@ -186,6 +186,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { ImageUploader } from "@/components/admin/ImageUploader";
 
 // form posts directly to this action, so it should take only FormData
 async function saveProduct(formData: FormData) {
@@ -255,11 +256,7 @@ export default async function EditProduct({
 
       <div className="space-y-2">
         <span className="font-medium">Images (1–2)</span>
-        <form action="/api/upload/product-image" method="POST" encType="multipart/form-data" className="flex gap-2">
-          <input type="hidden" name="productId" value={p.id} />
-          <input type="file" name="file" accept="image/*" className="input" />
-          <button className="btn">Upload</button>
-        </form>
+        <ImageUploader productId={p.id} />
         <div className="flex gap-2">
           {p.images.map((img: { id: string }) => (
             // eslint-disable-next-line @next/next/no-img-element

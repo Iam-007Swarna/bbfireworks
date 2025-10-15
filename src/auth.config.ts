@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
+import { getServerSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -74,3 +75,10 @@ export const authOptions: NextAuthOptions = {
     }
   }
 };
+
+/**
+ * Helper function to get the current session in server components and API routes
+ */
+export function auth() {
+  return getServerSession(authOptions);
+}
