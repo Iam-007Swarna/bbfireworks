@@ -1,4 +1,5 @@
-import PDFDocument from "pdfkit";
+// Use standalone version that doesn't require filesystem access
+import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { prisma } from "@/lib/prisma";
 
 type Line = { name: string; unit: "box"|"pack"|"piece"; qty: number; price: number; total: number };
@@ -18,9 +19,15 @@ function currency(n: number, digits = 2) {
 }
 
 function makeDoc(data: InvoiceData, businessName: string, businessPhone?: string) {
-  const doc = new PDFDocument({ margin: 36 }); // 0.5" margins
+  // A4 dimensions: 595.28 x 841.89 points
+  const doc = new PDFDocument({
+    size: 'A4',
+    margin: 50, // 50 points margin on all sides
+    autoFirstPage: true,
+    bufferPages: true
+  });
   const chunks: Buffer[] = [];
-  doc.on("data", (d) => chunks.push(d));
+  doc.on("data", (d: Buffer) => chunks.push(d));
   const done = new Promise<Buffer>((resolve) => {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
   });
@@ -42,49 +49,67 @@ function makeDoc(data: InvoiceData, businessName: string, businessPhone?: string
   }
 
   // Table header
+  // A4 width: 595.28 - (50*2 margins) = 495.28 usable width
   doc.moveDown(0.75);
   const startX = doc.x;
+  const pageWidth = 495; // Usable width within margins
+
   const col = {
     name: startX,
-    unit: startX + 260,
-    qty: startX + 330,
-    price: startX + 390,
-    total: startX + 480,
+    unit: startX + 240,
+    qty: startX + 305,
+    price: startX + 365,
+    total: startX + 440,
   };
 
-  doc.fontSize(11).text("Firecracker", col.name, doc.y, { width: 250 });
-  doc.text("Unit", col.unit, doc.y);
-  doc.text("Qty", col.qty, doc.y, { width: 45, align: "right" });
-  doc.text("Price/Unit", col.price, doc.y, { width: 80, align: "right" });
-  doc.text("Total", col.total, doc.y, { width: 90, align: "right" });
+  doc.fontSize(11).text("Firecracker", col.name, doc.y, { width: 230 });
+  doc.text("Unit", col.unit, doc.y, { width: 55 });
+  doc.text("Qty", col.qty, doc.y, { width: 50, align: "right" });
+  doc.text("Price/Unit", col.price, doc.y, { width: 65, align: "right" });
+  doc.text("Total", col.total, doc.y, { width: 55, align: "right" });
 
   doc.moveDown(0.2);
   const y0 = doc.y;
-  doc.moveTo(startX, y0).lineTo(startX + 570, y0).strokeColor("#ddd").stroke();
+  doc.moveTo(startX, y0).lineTo(startX + pageWidth, y0).strokeColor("#ddd").stroke();
   doc.moveDown(0.2);
 
   // Lines
   data.lines.forEach((l) => {
+    // Check if we need a new page (leave 150 points for footer and totals)
+    if (doc.y > 700) {
+      doc.addPage();
+      // Re-draw table header on new page
+      doc.fontSize(11).text("Firecracker", col.name, doc.y, { width: 230 });
+      doc.text("Unit", col.unit, doc.y, { width: 55 });
+      doc.text("Qty", col.qty, doc.y, { width: 50, align: "right" });
+      doc.text("Price/Unit", col.price, doc.y, { width: 65, align: "right" });
+      doc.text("Total", col.total, doc.y, { width: 55, align: "right" });
+      doc.moveDown(0.2);
+      const yHeader = doc.y;
+      doc.moveTo(startX, yHeader).lineTo(startX + pageWidth, yHeader).strokeColor("#ddd").stroke();
+      doc.moveDown(0.2);
+    }
+
     const y = doc.y + 2;
     doc.fillColor("#000").fontSize(10);
-    doc.text(l.name, col.name, y, { width: 250 });
-    doc.text(l.unit, col.unit, y);
-    doc.text(String(l.qty), col.qty, y, { width: 45, align: "right" });
-    doc.text(currency(l.price), col.price, y, { width: 80, align: "right" });
-    doc.text(currency(l.total), col.total, y, { width: 90, align: "right" });
+    doc.text(l.name, col.name, y, { width: 230 });
+    doc.text(l.unit, col.unit, y, { width: 55 });
+    doc.text(String(l.qty), col.qty, y, { width: 50, align: "right" });
+    doc.text(currency(l.price), col.price, y, { width: 65, align: "right" });
+    doc.text(currency(l.total), col.total, y, { width: 55, align: "right" });
     doc.moveDown(0.2);
   });
 
   // Totals
   doc.moveDown(0.4);
   const y1 = doc.y;
-  doc.moveTo(startX, y1).lineTo(startX + 570, y1).strokeColor("#ddd").stroke();
+  doc.moveTo(startX, y1).lineTo(startX + pageWidth, y1).strokeColor("#ddd").stroke();
   doc.moveDown(0.4);
 
-  const rightX = startX + 380;
+  const rightX = startX + 295; // Adjusted for A4 width
   const row = (label: string, val: string) => {
     doc.fontSize(11).fillColor("#000").text(label, rightX, doc.y, { width: 100, align: "right" });
-    doc.text(val, rightX + 110, doc.y, { width: 100, align: "right" });
+    doc.text(val, rightX + 110, doc.y, { width: 90, align: "right" });
   };
 
   row("Subtotal", currency(data.subtotal));

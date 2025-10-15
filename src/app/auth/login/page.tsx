@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -107,9 +108,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          className="btn w-full"
+          className="btn w-full flex items-center justify-center gap-1.5"
           disabled={loading}
         >
+          <LogIn size={18} />
           {loading ? "Signing in..." : "Sign in"}
         </button>
       </form>

@@ -57,44 +57,50 @@ async function fulfillOrder(formData: FormData) {
     stock[l.productId] = available - need; // reserve
   }
 
-  // Consume FIFO for each line; compute subtotal
-  let subtotal = 0;
-  for (const l of order.lines as FulfillOrderLine[]) {
-    subtotal += Number(l.pricePerUnit) * l.qty;
-    await consumeFIFOOnce(
-      l.productId,
-      l.qty,
-      l.unit as Unit,
-      l.product.piecesPerPack,
-      l.product.packsPerBox,
-      order.id
-    );
-  }
+  // All operations in a transaction to ensure atomicity
+  let invoiceId = "";
+  await prisma.$transaction(async (tx) => {
+    // Consume FIFO for each line; compute subtotal
+    let subtotal = 0;
+    for (const l of order.lines as FulfillOrderLine[]) {
+      subtotal += Number(l.pricePerUnit) * l.qty;
+      await consumeFIFOOnce(
+        l.productId,
+        l.qty,
+        l.unit as Unit,
+        l.product.piecesPerPack,
+        l.product.packsPerBox,
+        order.id,
+        tx // Pass transaction client
+      );
+    }
 
-  // Create invoice
-  const invoiceNo = await nextInvoiceNumber();
-  const created = await prisma.invoice.create({
-    data: {
-      orderId: order.id,
-      number: invoiceNo,
-      subtotal: String(subtotal),
-      tax: "0",
-      roundOff: "0",
-      grand: String(subtotal),
-      pdfBytes: Buffer.from(""), // filled after generation
-    },
-    select: { id: true }
+    // Create invoice
+    const invoiceNo = await nextInvoiceNumber();
+    const created = await tx.invoice.create({
+      data: {
+        orderId: order.id,
+        number: invoiceNo,
+        subtotal: String(subtotal),
+        tax: "0",
+        roundOff: "0",
+        grand: String(subtotal),
+        pdfBytes: Buffer.from(""), // filled after generation
+      },
+      select: { id: true }
+    });
+    invoiceId = created.id;
+
+    // Mark order fulfilled
+    await tx.order.update({ where: { id }, data: { status: "fulfilled" } });
   });
 
-  // Mark order fulfilled
-  await prisma.order.update({ where: { id }, data: { status: "fulfilled" } });
-
-  // Generate & persist PDF
-  const pdf = await generateInvoicePdfBuffer(created.id);
-  await prisma.invoice.update({ where: { id: created.id }, data: { pdfBytes: pdf, pdfMime: "application/pdf" } });
+  // Generate & persist PDF (outside transaction for better performance)
+  const pdf = await generateInvoicePdfBuffer(invoiceId);
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { pdfBytes: pdf, pdfMime: "application/pdf" } });
 
   revalidatePath(`/admin/orders/${id}`);
-  redirect(`/admin/invoices/${created.id}`);
+  redirect(`/admin/invoices/${invoiceId}`);
 }
 
 async function cancelOrder(formData: FormData) {
