@@ -158,8 +158,9 @@ import { stockMap } from "@/lib/stock";
 
 export const runtime = "nodejs";
 
-export default async function Home({ searchParams }: { searchParams: { q?: string } }) {
-  const q = (searchParams.q ?? "").trim();
+export default async function Home({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const params = await searchParams;
+  const q = (params.q ?? "").trim();
   
   const where = {
     active: true,
