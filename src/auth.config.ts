@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
+  secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  pages: {
+    signIn: "/auth/login",
+  },
   providers: [
     Credentials({
       name: "Credentials",
@@ -21,17 +28,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     })
   ],
   callbacks: {
-    async jwt({ token }) {
-      if (token.sub) {
-        const u = await prisma.user.findUnique({ where: { id: token.sub } });
+    async jwt({ token, user, trigger }) {
+      // Initial sign in - populate token with user data
+      if (user) {
+        token.role = user.role;
+        token.id = user.id;
+      }
+
+      // Only refresh role from database if explicitly triggered (e.g., profile update)
+      // This reduces unnecessary database queries on every request
+      if (trigger === "update" && token.sub) {
+        const u = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { role: true }
+        });
         if (u) {
           token.role = u.role;
         }
       }
+
       return token;
     },
     async session({ session, token }) {
-      if (session.user && token.role) {
+      // Populate session with token data
+      if (session.user) {
+        session.user.id = token.sub as string;
         session.user.role = token.role as string;
       }
       return session;

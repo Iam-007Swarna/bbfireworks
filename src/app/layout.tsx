@@ -34,7 +34,6 @@
 // }
 
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ThemeToggle from "@/components/theme-toggle";
@@ -50,19 +49,23 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/* Set theme ASAP to avoid flash */}
-      <Script id="theme-init" strategy="beforeInteractive">
-        {`
-          try {
-            const ls = localStorage.getItem('theme');
-            const mql = window.matchMedia('(prefers-color-scheme: dark)');
-            const wantDark = ls ? ls === 'dark' : mql.matches;
-            const root = document.documentElement;
-            if (wantDark) root.classList.add('dark');
-            else root.classList.remove('dark');
-          } catch {}
-        `}
-      </Script>
+      <head>
+        {/* Set theme ASAP to avoid flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const ls = localStorage.getItem('theme');
+                const mql = window.matchMedia('(prefers-color-scheme: dark)');
+                const wantDark = ls ? ls === 'dark' : mql.matches;
+                const root = document.documentElement;
+                if (wantDark) root.classList.add('dark');
+                else root.classList.remove('dark');
+              } catch {}
+            `,
+          }}
+        />
+      </head>
 
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}>
         <a href="#content" className="sr-only focus:not-sr-only">Skip to content</a>
