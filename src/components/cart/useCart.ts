@@ -23,6 +23,8 @@ export function readCart(): CartItem[] {
 export function writeCart(items: CartItem[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem(KEY, JSON.stringify(items));
+  // Dispatch custom event to notify components about cart updates
+  window.dispatchEvent(new Event("cart-updated"));
 }
 
 export function addToCart(item: CartItem) {
