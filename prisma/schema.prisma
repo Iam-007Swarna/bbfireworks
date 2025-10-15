@@ -1,0 +1,272 @@
+// Prisma schema for BB Fireworks (Vercel + Neon, JWT sessions)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL") // POOL (PgBouncer) for runtime
+  directUrl         = env("DIRECT_DATABASE_URL") // DIRECT (no pool) for migrations
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL") // shadow db for migrate dev
+}
+
+enum Role {
+  admin
+  member
+  guest
+}
+
+enum Channel {
+  retail
+  marketplace
+  wholesale
+}
+
+enum Unit {
+  box
+  pack
+  piece
+}
+
+/**
+ * =========================
+ * USERS
+ * =========================
+ */
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String   @unique
+  role         Role     @default(member)
+  passwordHash String
+  totpSecret   String?
+  createdAt    DateTime @default(now())
+
+  // relations
+  orders    Order[]    @relation("UserOrders")
+  auditLogs AuditLog[]
+
+  @@index([createdAt])
+}
+
+/**
+ * =========================
+ * CATALOG & PRICING
+ * =========================
+ */
+model Product {
+  id                   String   @id @default(cuid())
+  sku                  String   @unique
+  name                 String
+  hsn                  String?
+  gstPct               Decimal  @default(0) @db.Decimal(5, 2)
+  piecesPerPack        Int
+  packsPerBox          Int
+  allowSellBox         Boolean  @default(false)
+  allowSellPack        Boolean  @default(true)
+  allowSellPiece       Boolean  @default(true)
+  description          String?  @db.Text
+  active               Boolean  @default(true)
+  visibleOnMarketplace Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  // relations
+  images      ProductImage[]
+  prices      PriceList[]
+  purchases   PurchaseLine[]
+  stockLedger StockLedger[]
+  rateCards   RateCard[]
+  orderLines  OrderLine[]
+
+  @@index([name])
+  @@index([sku])
+  @@index([createdAt])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mime      String
+  width     Int
+  height    Int
+  bytes     Bytes
+  createdAt DateTime @default(now())
+}
+
+model PriceList {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channel      Channel
+  sellPerBox   Decimal?  @db.Decimal(12, 2)
+  sellPerPack  Decimal?  @db.Decimal(12, 2)
+  sellPerPiece Decimal?  @db.Decimal(12, 4)
+  activeFrom   DateTime
+  activeTo     DateTime?
+
+  @@index([productId, channel, activeFrom])
+}
+
+/**
+ * =========================
+ * SUPPLIERS & RATES
+ * =========================
+ */
+model Supplier {
+  id    String     @id @default(cuid())
+  name  String     @unique
+  phone String?
+  gstin String?
+  notes String?
+  rates RateCard[]
+  buys  Purchase[]
+}
+
+model RateCard {
+  id             String    @id @default(cuid())
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId     String?
+  supplier       Supplier? @relation(fields: [supplierId], references: [id])
+  year           Int
+  buyPerBox      Decimal?  @db.Decimal(12, 2)
+  buyPerPack     Decimal?  @db.Decimal(12, 2)
+  buyPerPiece    Decimal?  @db.Decimal(12, 4)
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  notes          String?
+  attachment     Bytes?
+  attachmentMime String?
+}
+
+/**
+ * =========================
+ * PURCHASES & STOCK
+ * =========================
+ */
+model Purchase {
+  id             String         @id @default(cuid())
+  supplierId     String
+  supplier       Supplier       @relation(fields: [supplierId], references: [id])
+  date           DateTime
+  billNo         String?
+  attachment     Bytes?
+  attachmentMime String?
+  lines          PurchaseLine[]
+}
+
+model PurchaseLine {
+  id            String   @id @default(cuid())
+  purchaseId    String
+  purchase      Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  qtyBoxes      Int      @default(0)
+  qtyPacks      Int      @default(0)
+  qtyPieces     Int      @default(0)
+  unitCostPiece Decimal  @db.Decimal(12, 4) // normalized cost/piece
+  taxPct        Decimal  @default(0) @db.Decimal(5, 2)
+}
+
+model StockLedger {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  deltaPieces   Int // +in / -out (always pieces)
+  unitCostPiece Decimal  @db.Decimal(12, 4) // cost linked to this delta
+  sourceType    String // 'purchase' | 'sale' | 'adjust'
+  sourceId      String
+  createdAt     DateTime @default(now())
+
+  @@index([productId, createdAt])
+}
+
+/**
+ * =========================
+ * ORDERS & INVOICES
+ * =========================
+ */
+model Customer {
+  id      String  @id @default(cuid())
+  name    String
+  phone   String  @unique
+  address String?
+  orders  Order[]
+}
+
+model Order {
+  id         String    @id @default(cuid())
+  channel    Channel
+  status     String // 'pending_whatsapp' | 'confirmed' | 'fulfilled' | 'cancelled'
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  // created by (User)
+  createdById String?
+  createdBy   User?   @relation("UserOrders", fields: [createdById], references: [id])
+
+  notes     String?
+  createdAt DateTime    @default(now())
+  lines     OrderLine[]
+  invoice   Invoice?
+
+  @@index([createdAt, status])
+}
+
+model OrderLine {
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  unit         Unit
+  qty          Int
+  pricePerUnit Decimal @db.Decimal(12, 4)
+  taxPct       Decimal @default(0) @db.Decimal(5, 2)
+}
+
+model Invoice {
+  id String @id @default(cuid())
+
+  // One-to-one with Order
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  number   String   @unique
+  date     DateTime @default(now())
+  subtotal Decimal  @db.Decimal(12, 2)
+  tax      Decimal  @db.Decimal(12, 2)
+  roundOff Decimal  @default(0) @db.Decimal(12, 2)
+  grand    Decimal  @db.Decimal(12, 2)
+  pdfBytes Bytes
+  pdfMime  String   @default("application/pdf")
+}
+
+/**
+ * =========================
+ * LOGGING & RATE LIMIT
+ * =========================
+ */
+model AuditLog {
+  id String @id @default(cuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action   String
+  entity   String
+  entityId String
+  diffJSON Json?
+  at       DateTime @default(now())
+}
+
+model RateLimit {
+  id          String   @id @default(cuid())
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@index([key, windowStart])
+}

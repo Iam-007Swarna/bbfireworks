@@ -1,0 +1,89 @@
+/* @import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+} */
+
+/* app/globals.css */
+@import "tailwindcss";
+
+/* Light by default */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+/* Manual dark override (preferred for Next.js apps) */
+html.dark,
+html[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+/* Map tokens to Tailwind theme vars when needed */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Make `dark:` work with .dark or [data-theme="dark"] */
+@custom-variant dark (&:where(.dark, [data-theme="dark"], .dark *, [data-theme="dark"] *));
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base */
+html, body { height: 100%; }
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Minimal, reusable components */
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border transition-colors
+           border-gray-300 dark:border-gray-700 hover:bg-black/5 dark:hover:bg-white/5;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 rounded-md text-sm border bg-transparent
+           border-gray-300 dark:border-gray-700;
+  }
+
+  .card {
+    @apply rounded-lg border p-4 bg-transparent
+           border-gray-200 dark:border-gray-800;
+  }
+
+  .badge {
+    @apply inline-flex items-center text-xs px-2 py-1 rounded
+           bg-black/5 dark:bg-white/10;
+  }
+}
