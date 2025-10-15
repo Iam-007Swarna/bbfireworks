@@ -193,11 +193,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { MessageCircle } from "lucide-react";
 import { toPieces } from "@/lib/units";
-import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { Decimal } from "@prisma/client/runtime/library";
 import CartToHidden from "./CartToHidden";
+import SubmitButton from "./SubmitButton";
 
 type CartItem = {
   productId: string;
@@ -221,22 +220,34 @@ type ProductWithPrice = {
 async function createOrder(formData: FormData) {
   "use server";
 
-  const name = String(formData.get("name") || "");
-  const phone = String(formData.get("phone") || "");
-  const address = String(formData.get("address") || "");
-  const note = String(formData.get("note") || "");
-
-  // Changed: Use "items" to match the existing cart localStorage key
-  const raw = String(formData.get("items") || "[]");
-
-  let items: CartItem[] = [];
   try {
-    items = JSON.parse(raw) as CartItem[];
-  } catch {}
+    const name = String(formData.get("name") || "").trim();
+    const phone = String(formData.get("phone") || "").trim();
+    const address = String(formData.get("address") || "").trim();
+    const note = String(formData.get("note") || "").trim();
 
-  if (!items.length) {
-    redirect("/cart");
-  }
+    // Validation
+    if (!name || name.length < 2) {
+      throw new Error("Please provide a valid name");
+    }
+
+    if (!phone || !/^[0-9]{10}$/.test(phone)) {
+      throw new Error("Please provide a valid 10-digit phone number");
+    }
+
+    // Changed: Use "items" to match the existing cart localStorage key
+    const raw = String(formData.get("items") || "[]");
+
+    let items: CartItem[] = [];
+    try {
+      items = JSON.parse(raw) as CartItem[];
+    } catch {
+      throw new Error("Invalid cart data");
+    }
+
+    if (!items.length) {
+      redirect("/cart");
+    }
 
   // Load products & current marketplace prices
   const ids = [...new Set(items.map((r) => r.productId))];
@@ -318,95 +329,102 @@ async function createOrder(formData: FormData) {
     select: { id: true },
   });
 
-  // Deduct stock via StockLedger entries
-  for (const item of items) {
-    const p = pmap.get(item.productId)!;
-    const pr = p.prices[0];
-    const pricePerUnit =
-      item.unit === "box"
-        ? pr?.sellPerBox ?? 0
-        : item.unit === "pack"
-        ? pr?.sellPerPack ?? 0
-        : pr?.sellPerPiece ?? 0;
-    const deltaPieces = -toPieces(item.qty, item.unit, p.piecesPerPack, p.packsPerBox);
+    // NOTE: Stock is NOT deducted here - it will be deducted when order is confirmed
+    // This prevents stock loss if user doesn't send the WhatsApp message
 
-    await prisma.stockLedger.create({
-      data: {
-        productId: item.productId,
-        deltaPieces,
-        unitCostPiece: Number(pricePerUnit), // Use sell price as cost for now
-        sourceType: "sale",
-        sourceId: order.id,
-      },
-    });
+    // Redirect to confirmation page instead of directly to WhatsApp
+    redirect(`/checkout/confirm?orderId=${order.id}`);
+  } catch (error) {
+    // Next.js redirect() throws a special error to perform the redirect
+    // We need to check if it's a redirect and re-throw it, otherwise handle the actual error
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      throw error;
+    }
+
+    // This is an actual error, log it
+    console.error("Order creation error:", error);
+
+    // Redirect to checkout with error (in a real app, you'd show this in the UI)
+    redirect("/cart?error=checkout_failed");
   }
-
-  // Build WhatsApp text
-  const lines = items.map((item) => {
-    const p = pmap.get(item.productId)!;
-    const pr = p.prices[0];
-    const price =
-      item.unit === "box"
-        ? pr?.sellPerBox ?? 0
-        : item.unit === "pack"
-        ? pr?.sellPerPack ?? 0
-        : pr?.sellPerPiece ?? 0;
-    const total = Number(price) * item.qty;
-    return `${item.name} - ${item.qty} ${item.unit} @ ₹${Number(price).toFixed(2)}/unit = ₹${total.toFixed(2)}`;
-  });
-
-  const subtotal = items.reduce((sum, item) => {
-    const p = pmap.get(item.productId)!;
-    const pr = p.prices[0];
-    const price =
-      item.unit === "box"
-        ? pr?.sellPerBox ?? 0
-        : item.unit === "pack"
-        ? pr?.sellPerPack ?? 0
-        : pr?.sellPerPiece ?? 0;
-    return sum + Number(price) * item.qty;
-  }, 0);
-
-  const text = [
-    `Order from BB Fireworks, Nilganj`,
-    ...lines,
-    `Subtotal: ₹${subtotal.toFixed(2)}`,
-    `Name: ${name}`,
-    `Phone: ${phone}`,
-    `Address: ${address || "Pickup"}`,
-    note ? `Note: ${note}` : null,
-    `OrderId: ${order.id}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const waNumber = process.env.WHATSAPP_NUMBER || "9830463926";
-  const wa = buildWhatsAppLink(waNumber, text);
-  redirect(wa);
 }
 
 export default function CheckoutPage() {
   return (
-    <form action={createOrder} className="space-y-3">
-      <CartToHidden />
-      <div className="grid sm:grid-cols-2 gap-3">
-        <input className="input" name="name" placeholder="Your name" required />
-        <input className="input" name="phone" placeholder="Phone" required />
-        <textarea
-          className="input sm:col-span-2"
-          name="address"
-          placeholder="Address (optional)"
-        />
-        <textarea
-          className="input sm:col-span-2"
-          name="note"
-          placeholder="Notes (optional)"
-        />
+    <div className="max-w-2xl mx-auto space-y-4">
+      <h1 className="text-2xl font-semibold">Checkout</h1>
+
+      <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-700 dark:text-blue-300">
+          💡 Complete your order details below. You&apos;ll review everything before sending to WhatsApp.
+        </p>
       </div>
-      <button className="btn flex items-center gap-1.5">
-        <MessageCircle size={18} />
-        Send on WhatsApp
-      </button>
-    </form>
+
+      <form action={createOrder} className="space-y-4">
+        <CartToHidden />
+
+        <div className="card p-4 space-y-4">
+          <h2 className="font-semibold">Customer Information</h2>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium mb-1">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="name"
+                className="input"
+                name="name"
+                placeholder="Enter your name"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium mb-1">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="phone"
+                className="input"
+                name="phone"
+                type="tel"
+                placeholder="10-digit mobile number"
+                pattern="[0-9]{10}"
+                required
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="address" className="block text-sm font-medium mb-1">
+                Delivery Address <span className="text-gray-400">(Optional)</span>
+              </label>
+              <textarea
+                id="address"
+                className="input"
+                name="address"
+                rows={3}
+                placeholder="Enter delivery address or leave blank for store pickup"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="note" className="block text-sm font-medium mb-1">
+                Special Instructions <span className="text-gray-400">(Optional)</span>
+              </label>
+              <textarea
+                id="note"
+                className="input"
+                name="note"
+                rows={2}
+                placeholder="Any special requests or delivery instructions"
+              />
+            </div>
+          </div>
+        </div>
+
+        <SubmitButton />
+      </form>
+    </div>
   );
 }

@@ -222,10 +222,11 @@ export const runtime = "nodejs";
 
 export default async function EditProduct({
   params,
-}: { params: { id: string } }) {
+}: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   // infer type from the actual query
   const q = prisma.product.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { images: true },
   });
   type Product = NonNullable<Awaited<typeof q>>;

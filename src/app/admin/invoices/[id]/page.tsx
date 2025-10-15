@@ -14,9 +14,10 @@ async function regen(formData: FormData) {
   revalidatePath(`/admin/invoices/${id}`);
 }
 
-export default async function InvoiceDetail({ params }: { params: { id: string } }) {
+export default async function InvoiceDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const inv = await prisma.invoice.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       order: {
         include: {
