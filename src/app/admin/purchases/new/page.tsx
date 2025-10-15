@@ -334,7 +334,7 @@ export default async function NewPurchase() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">New Purchase</h1>
 
-      <form action={createPurchase} className="space-y-3" encType="multipart/form-data">
+      <form action={createPurchase} className="space-y-3">
         <div className="grid sm:grid-cols-3 gap-3">
           <label className="space-y-1">
             <span>Supplier (create or reuse by name)</span>

@@ -393,9 +393,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
         <AddToCart
           productId={product.id}
           name={product.name}
-          allowBox={product.allowSellBox && inStock}
-          allowPack={product.allowSellPack && inStock}
-          allowPiece={product.allowSellPiece && inStock}
+          allowBox={product.allowSellBox && inStock && price?.sellPerBox != null}
+          allowPack={product.allowSellPack && inStock && price?.sellPerPack != null}
+          allowPiece={product.allowSellPiece && inStock && price?.sellPerPiece != null}
         />
       </div>
     </div>

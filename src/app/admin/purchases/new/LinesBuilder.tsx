@@ -20,11 +20,7 @@ type Row = {
 };
 
 export default function LinesBuilder({ products }: { products: Product[] }) {
-  const initial: Row[] = products.length
-    ? [{ productId: products[0].id, qtyBoxes: 0, qtyPacks: 0, qtyPieces: 0, unitCostPiece: 0, taxPct: 0 }]
-    : [];
-
-  const [rows, setRows] = React.useState<Row[]>(initial);
+  const [rows, setRows] = React.useState<Row[]>([]);
   const hiddenRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -35,39 +31,42 @@ export default function LinesBuilder({ products }: { products: Product[] }) {
     return <div className="text-sm text-amber-600">No active products available. Add products first.</div>;
   }
 
+  const addLine = () => {
+    setRows((r) => [
+      ...r,
+      { productId: products[0].id, qtyBoxes: 0, qtyPacks: 0, qtyPieces: 0, unitCostPiece: 0, taxPct: 0 },
+    ]);
+  };
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="font-medium">Lines</span>
-        <button
-          type="button"
-          className="btn"
-          onClick={() =>
-            setRows((r) => [
-              ...r,
-              { productId: products[0].id, qtyBoxes: 0, qtyPacks: 0, qtyPieces: 0, unitCostPiece: 0, taxPct: 0 },
-            ])
-          }
-        >
+        <button type="button" className="btn" onClick={addLine}>
           + Add line
         </button>
       </div>
 
-      <div className="overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-left">
-            <tr>
-              <th className="p-2">Product</th>
-              <th className="p-2">Boxes</th>
-              <th className="p-2">Packs</th>
-              <th className="p-2">Pieces</th>
-              <th className="p-2">Cost / Piece (₹)</th>
-              <th className="p-2">Tax %</th>
-              <th className="p-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
+      {rows.length === 0 ? (
+        <div className="text-sm text-gray-600 dark:text-gray-400 p-4 border border-dashed rounded">
+          No lines added yet. Click &quot;+ Add line&quot; to add purchase items.
+        </div>
+      ) : (
+        <div className="overflow-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-left">
+              <tr>
+                <th className="p-2">Product</th>
+                <th className="p-2">Boxes</th>
+                <th className="p-2">Packs</th>
+                <th className="p-2">Pieces</th>
+                <th className="p-2">Cost / Piece (₹)</th>
+                <th className="p-2">Tax %</th>
+                <th className="p-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
               const prod = products.find((p) => p.id === r.productId)!;
               const piecesFromBox = prod.packsPerBox * prod.piecesPerPack * r.qtyBoxes;
               const piecesFromPack = prod.piecesPerPack * r.qtyPacks;
@@ -77,7 +76,7 @@ export default function LinesBuilder({ products }: { products: Product[] }) {
                 <tr key={i}>
                   <td className="p-2">
                     <select
-                      className="input w-52"
+                      className="input w-52 dark:bg-black dark:[&>option]:bg-black"
                       value={r.productId}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -155,6 +154,7 @@ export default function LinesBuilder({ products }: { products: Product[] }) {
           </tbody>
         </table>
       </div>
+      )}
 
       <input ref={hiddenRef} type="hidden" id="lines-json" name="lines" defaultValue="[]" />
     </div>
