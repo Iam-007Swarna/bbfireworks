@@ -207,6 +207,17 @@ async function saveProduct(formData: FormData) {
   revalidatePath("/admin/products");
 }
 
+async function deleteImage(formData: FormData) {
+  "use server";
+  const imageId = String(formData.get("imageId") || "");
+  const productId = String(formData.get("productId") || "");
+
+  if (!imageId) return;
+
+  await prisma.productImage.delete({ where: { id: imageId } });
+  revalidatePath(`/admin/products/${productId}`);
+}
+
 export const runtime = "nodejs";
 
 export default async function EditProduct({
@@ -257,10 +268,23 @@ export default async function EditProduct({
       <div className="space-y-2">
         <span className="font-medium">Images (1–2)</span>
         <ImageUploader productId={p.id} />
-        <div className="flex gap-2">
+        <div className="flex gap-3 flex-wrap">
           {p.images.map((img: { id: string }) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={img.id} src={`/api/images/${img.id}`} className="h-20 rounded" alt="" />
+            <div key={img.id} className="relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/images/${img.id}`} className="h-24 rounded border border-gray-200 dark:border-gray-700" alt="" />
+              <form action={deleteImage} className="absolute top-1 right-1">
+                <input type="hidden" name="imageId" value={img.id} />
+                <input type="hidden" name="productId" value={p.id} />
+                <button
+                  type="submit"
+                  className="bg-red-600 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete image"
+                >
+                  ×
+                </button>
+              </form>
+            </div>
           ))}
         </div>
       </div>

@@ -314,6 +314,7 @@
 import { prisma } from "@/lib/prisma";
 import { stockMap } from "@/lib/stock";
 import AddToCart from "@/components/cart/AddToCart";
+import { ImageGallery } from "@/components/product/ImageGallery";
 
 export const runtime = "nodejs";
 
@@ -323,7 +324,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const product = await prisma.product.findUnique({
     where: { id: params.id, active: true, visibleOnMarketplace: true },
     include: {
-      images: { select: { id: true }, take: 2 },
+      images: { select: { id: true }, orderBy: { id: "asc" } },
       prices: {
         where: {
           channel: "marketplace",
@@ -346,27 +347,18 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const price = product.prices[0] ?? null;
 
   return (
-    <div className="grid md:grid-cols-2 gap-6">
+    <div className="grid md:grid-cols-2 gap-8 max-w-7xl mx-auto">
       {/* Left: images */}
       <div>
-        <div className="grid grid-cols-2 gap-2">
-          {product.images.length > 0 ? (
-            product.images.map((img: { id: string }) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={img.id}
-                src={`/api/images/${img.id}`}
-                alt={product.name}
-                className={`rounded ${inStock ? "" : "grayscale"}`}
-                loading="lazy"
-              />
-            ))
-          ) : (
-            <div className="h-48 rounded bg-gray-100 dark:bg-gray-800 col-span-2" />
-          )}
-        </div>
+        <ImageGallery
+          images={product.images}
+          productName={product.name}
+          inStock={inStock}
+        />
         {!inStock && (
-          <div className="mt-2 text-sm text-red-600">Currently out of stock.</div>
+          <div className="mt-3 text-sm text-red-600 dark:text-red-400">
+            Currently out of stock.
+          </div>
         )}
       </div>
 
