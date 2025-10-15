@@ -6,8 +6,10 @@ const prisma = new PrismaClient();
 
 async function main() {
   // --- Users ---
-  const adminEmail = 'admin@bbf.local';
-  const memberEmail = 'member@bbf.local';
+  const adminEmail = 'swarnavab98@gmail.com';
+  const adminPassword = 'moc.liamg@89bavanraws'; // reverse of email
+  const memberEmail = 'instel.llc@gmail.com';
+  const memberPassword = 'moc.liamg@cll.letsni'; // reverse of email
 
   const [admin, member] = await Promise.all([
     prisma.user.upsert({
@@ -15,9 +17,9 @@ async function main() {
       update: {},
       create: {
         email: adminEmail,
-        name: 'Admin',
+        name: 'Swarnava B',
         role: 'admin',
-        passwordHash: await bcrypt.hash('bbf_admin_123', 10),
+        passwordHash: await bcrypt.hash(adminPassword, 10),
       },
     }),
     prisma.user.upsert({
@@ -25,9 +27,9 @@ async function main() {
       update: {},
       create: {
         email: memberEmail,
-        name: 'Member',
+        name: 'Instel LLC',
         role: 'member',
-        passwordHash: await bcrypt.hash('bbf_member_123', 10),
+        passwordHash: await bcrypt.hash(memberPassword, 10),
       },
     }),
   ]);

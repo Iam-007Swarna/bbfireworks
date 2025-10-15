@@ -1,19 +1,25 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/auth.config";
+import { getToken } from "next-auth/jwt";
 
 const PROTECTED = [/^\/pos(?:\/.*)?$/, /^\/admin(?:\/.*)?$/];
 
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
   if (PROTECTED.some(rx => rx.test(path))) {
-    const session = await auth();
-    if (!session) return NextResponse.redirect(new URL("/auth/login", req.url));
-    const role = session.user?.role;
-    if (!role || !["admin","member"].includes(role)) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+    if (!token) {
+      return NextResponse.redirect(new URL("/auth/login", req.url));
+    }
+
+    const role = token.role as string | undefined;
+    if (!role || !["admin", "member"].includes(role)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
+
   return NextResponse.next();
 }
 
