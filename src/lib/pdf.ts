@@ -124,7 +124,7 @@ export async function generateInvoicePdfBuffer(invoiceId: string) {
     const total = Number(l.pricePerUnit) * l.qty;
     return {
       name: l.product.name,
-      unit: l.unit as any,
+      unit: l.unit as "box" | "pack" | "piece",
       qty: l.qty,
       price: Number(l.pricePerUnit),
       total,

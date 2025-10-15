@@ -195,7 +195,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { toPieces } from "@/lib/units";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
-import React from "react";
+import { Decimal } from "@prisma/client/runtime/library";
+import CartToHidden from "./CartToHidden";
 
 type CartItem = {
   productId: string;
@@ -210,9 +211,9 @@ type ProductWithPrice = {
   piecesPerPack: number;
   packsPerBox: number;
   prices: Array<{
-    sellPerBox: number | null;
-    sellPerPack: number | null;
-    sellPerPiece: number | null;
+    sellPerBox: Decimal | null;
+    sellPerPack: Decimal | null;
+    sellPerPiece: Decimal | null;
   }>;
 };
 
@@ -258,7 +259,7 @@ async function createOrder(formData: FormData) {
       },
     },
   });
-  const pmap = new Map<string, ProductWithPrice>(products.map((p: ProductWithPrice) => [p.id, p]));
+  const pmap = new Map<string, ProductWithPrice>(products.map((p) => [p.id, p]));
 
   // Stock validation
   const grouped = await prisma.stockLedger.groupBy({
@@ -404,16 +405,4 @@ export default function CheckoutPage() {
       <button className="btn">Send on WhatsApp</button>
     </form>
   );
-}
-
-/** Collect cart from localStorage at mount time - uses "bbf_cart" key */
-function CartToHidden() {
-  "use client";
-  const ref = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => {
-    const payload = JSON.parse(localStorage.getItem("bbf_cart") || "[]");
-    if (ref.current) ref.current.value = JSON.stringify(payload);
-  }, []);
-  // Changed: Use "items" to match old field name
-  return <input ref={ref} name="items" type="hidden" defaultValue="[]" />;
 }

@@ -9,8 +9,8 @@ export default async function middleware(req: NextRequest) {
   if (PROTECTED.some(rx => rx.test(path))) {
     const session = await auth();
     if (!session) return NextResponse.redirect(new URL("/auth/login", req.url));
-    const role = (session.user as any)?.role;
-    if (!["admin","member"].includes(role)) {
+    const role = session.user?.role;
+    if (!role || !["admin","member"].includes(role)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }

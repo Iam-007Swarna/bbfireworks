@@ -167,12 +167,12 @@ export default async function Home({ searchParams }: { searchParams: { q?: strin
     ...(q
       ? {
           OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { sku: { contains: q, mode: "insensitive" } },
+            { name: { contains: q, mode: "insensitive" as const } },
+            { sku: { contains: q, mode: "insensitive" as const } },
           ],
         }
       : {}),
-  } as const;
+  };
 
   const products = await prisma.product.findMany({
     where,
@@ -202,6 +202,7 @@ export default async function Home({ searchParams }: { searchParams: { q?: strin
                 </span>
               )}
               {imgId ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={`/api/images/${imgId}`}
                   alt={p.name}

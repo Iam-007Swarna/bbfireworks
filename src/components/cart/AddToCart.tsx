@@ -31,7 +31,7 @@ export default function AddToCart({
       <select
         className="input w-28"
         value={unit}
-        onChange={(e) => setUnit(e.target.value as any)}
+        onChange={(e) => setUnit(e.target.value as "box" | "pack" | "piece")}
       >
         {allowBox && <option value="box">Box</option>}
         {allowPack && <option value="pack">Pack</option>}

@@ -1,7 +1,6 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -98,7 +97,7 @@ export async function createPurchase(formData: FormData) {
     create: { name: supplierName },
   });
 
-  await prisma.$transaction(async (tx: PrismaClient) => {
+  await prisma.$transaction(async (tx) => {
     const purchase = await tx.purchase.create({
       data: {
         supplierId: supplier.id,

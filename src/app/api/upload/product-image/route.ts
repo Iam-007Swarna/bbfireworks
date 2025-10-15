@@ -38,8 +38,8 @@ const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", 
 export async function POST(req: Request) {
   // RBAC: only admin/member can upload
   const session = await auth();
-  const role = (session?.user as any)?.role;
-  if (!session || !["admin", "member"].includes(role)) {
+  const role = session?.user?.role;
+  if (!session || !role || !["admin", "member"].includes(role)) {
     return new Response("Unauthorized", { status: 401 });
   }
 

@@ -311,11 +311,9 @@
 // }
 
 
-"use client";
-
 import { prisma } from "@/lib/prisma";
 import { stockMap } from "@/lib/stock";
-import React from "react";
+import AddToCart from "@/components/cart/AddToCart";
 
 export const runtime = "nodejs";
 
@@ -354,6 +352,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
         <div className="grid grid-cols-2 gap-2">
           {product.images.length > 0 ? (
             product.images.map((img: { id: string }) => (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={img.id}
                 src={`/api/images/${img.id}`}
@@ -400,87 +399,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
         {/* Add to cart */}
         <AddToCart
-          product={{
-            id: product.id,
-            name: product.name,
-            piecesPerPack: product.piecesPerPack,
-            packsPerBox: product.packsPerBox,
-            allow: {
-              box: product.allowSellBox,
-              pack: product.allowSellPack,
-              piece: product.allowSellPiece,
-            },
-            price: {
-              box: price?.sellPerBox ? Number(price.sellPerBox) : null,
-              pack: price?.sellPerPack ? Number(price.sellPerPack) : null,
-              piece: price?.sellPerPiece ? Number(price.sellPerPiece) : null,
-            },
-            inStockPieces,
-          }}
+          productId={product.id}
+          name={product.name}
+          allowBox={product.allowSellBox && inStock}
+          allowPack={product.allowSellPack && inStock}
+          allowPiece={product.allowSellPiece && inStock}
         />
       </div>
     </div>
   );
 }
 
-function AddToCart({
-  product,
-}: {
-  product: {
-    id: string;
-    name: string;
-    piecesPerPack: number;
-    packsPerBox: number;
-    allow: { box: boolean; pack: boolean; piece: boolean };
-    price: { box: number | null; pack: number | null; piece: number | null };
-    inStockPieces: number;
-  };
-}) {
-  const [unit, setUnit] = React.useState<"box" | "pack" | "piece">(
-    product.allow.pack ? "pack" : product.allow.piece ? "piece" : "box"
-  );
-  const [qty, setQty] = React.useState(1);
-  const disabled = product.inStockPieces <= 0;
-
-  function add() {
-    if (disabled) return;
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    cart.push({
-      productId: product.id,
-      name: product.name,
-      unit,
-      qty,
-    });
-    localStorage.setItem("cart", JSON.stringify(cart));
-    alert("Added to cart");
-  }
-
-  return (
-    <div className="card space-y-3">
-      <div className="flex gap-2 items-center">
-        <select
-          className="input w-32"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value as any)}
-          disabled={disabled}
-        >
-          {product.allow.box && <option value="box">Box</option>}
-          {product.allow.pack && <option value="pack">Pack</option>}
-          {product.allow.piece && <option value="piece">Piece</option>}
-        </select>
-        <input
-          className="input w-24"
-          type="number"
-          min={1}
-          value={qty}
-          onChange={(e) => setQty(Math.max(1, Number(e.target.value || "1")))}
-          disabled={disabled}
-        />
-        <button className="btn" disabled={disabled} onClick={add}>
-          {disabled ? "Out of stock" : "Add to cart"}
-        </button>
-      </div>
-      <div className="text-xs opacity-70">Note: price is confirmed at checkout.</div>
-    </div>
-  );
-}

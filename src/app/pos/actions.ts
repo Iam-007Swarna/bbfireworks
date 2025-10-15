@@ -183,8 +183,8 @@ export async function finalizePOS(formData: FormData) {
         },
       });
       invoiceId = created.id;
-    } catch (e: any) {
-      if (e?.code === "P2002") {
+    } catch (e: unknown) {
+      if (e && typeof e === "object" && "code" in e && e.code === "P2002") {
         number = await nextInvoiceNumberTx(tx);
         const created = await tx.invoice.create({
           data: {

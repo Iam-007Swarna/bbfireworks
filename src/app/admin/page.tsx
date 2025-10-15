@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 
 export default function AdminHome() {
@@ -6,10 +7,10 @@ export default function AdminHome() {
       <Card className="p-4">
         <h2 className="font-semibold mb-2">Quick Links</h2>
         <ul className="list-disc list-inside text-sm space-y-1">
-          <li><a className="underline" href="/admin/products">Manage Products</a></li>
-          <li><a className="underline" href="/admin/purchases">Add Purchase</a></li>
-          <li><a className="underline" href="/admin/pricing">Pricing</a></li>
-          <li><a className="underline" href="/pos">Open POS</a></li>
+          <li><Link className="underline" href="/admin/products">Manage Products</Link></li>
+          <li><Link className="underline" href="/admin/purchases">Add Purchase</Link></li>
+          <li><Link className="underline" href="/admin/pricing">Pricing</Link></li>
+          <li><Link className="underline" href="/pos">Open POS</Link></li>
         </ul>
       </Card>
       <Card className="p-4">

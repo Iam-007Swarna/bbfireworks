@@ -262,6 +262,7 @@ export default async function EditProduct({
         </form>
         <div className="flex gap-2">
           {p.images.map((img: { id: string }) => (
+            // eslint-disable-next-line @next/next/no-img-element
             <img key={img.id} src={`/api/images/${img.id}`} className="h-20 rounded" alt="" />
           ))}
         </div>

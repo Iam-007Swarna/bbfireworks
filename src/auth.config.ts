@@ -24,12 +24,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token }) {
       if (token.sub) {
         const u = await prisma.user.findUnique({ where: { id: token.sub } });
-        if (u) (token as any).role = u.role;
+        if (u) {
+          token.role = u.role;
+        }
       }
       return token;
     },
     async session({ session, token }) {
-      if (session.user) (session.user as any).role = (token as any).role;
+      if (session.user && token.role) {
+        session.user.role = token.role as string;
+      }
       return session;
     }
   }
