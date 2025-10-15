@@ -36,7 +36,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import ThemeToggle from "@/components/theme-toggle";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -68,16 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen`}>
-        <a href="#content" className="sr-only focus:not-sr-only">Skip to content</a>
-
-        <header className="border-b border-gray-200 dark:border-gray-800 p-3 flex items-center justify-between">
-          <div className="font-semibold">BB Fireworks</div>
-          <ThemeToggle />
-        </header>
-
-        <main id="content" className="container mx-auto p-4">
-          {children}
-        </main>
+        {children}
       </body>
     </html>
   );
