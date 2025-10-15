@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Trash2, X, ArrowRight } from "lucide-react";
 
 type CartClientProps = {
   priceMap: Record<
@@ -93,7 +94,8 @@ export default function CartClient({ priceMap }: CartClientProps) {
                     {total == null ? "—" : total.toFixed(2)}
                   </td>
                   <td className="p-2">
-                    <button className="btn" onClick={() => remove(i)}>
+                    <button className="btn flex items-center gap-1.5" onClick={() => remove(i)}>
+                      <Trash2 size={16} />
                       Remove
                     </button>
                   </td>
@@ -115,10 +117,12 @@ export default function CartClient({ priceMap }: CartClientProps) {
         <div>
           Grand Total (approx): <b>₹{grand.toFixed(2)}</b>
         </div>
-        <a className="btn" href="/checkout">
+        <a className="btn flex items-center gap-1.5" href="/checkout">
           Proceed to checkout
+          <ArrowRight size={16} />
         </a>
-        <button className="btn" onClick={clear}>
+        <button className="btn flex items-center gap-1.5" onClick={clear}>
+          <X size={16} />
           Clear cart
         </button>
       </div>

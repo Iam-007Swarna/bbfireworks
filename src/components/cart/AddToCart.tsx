@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ShoppingCart } from "lucide-react";
 import { addToCart } from "./useCart";
 import { Button } from "@/components/ui/Button";
 
@@ -48,10 +49,15 @@ export default function AddToCart({
         onClick={() => {
           addToCart({ productId, name, unit, qty });
         }}
+        className="flex items-center gap-1.5"
       >
+        <ShoppingCart size={16} />
         Add to cart
       </Button>
-      <a className="btn" href="/cart">View cart</a>
+      <a className="btn flex items-center gap-1.5" href="/cart">
+        <ShoppingCart size={16} />
+        View cart
+      </a>
     </div>
   );
 }

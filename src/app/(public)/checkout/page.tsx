@@ -193,6 +193,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { MessageCircle } from "lucide-react";
 import { toPieces } from "@/lib/units";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -402,7 +403,10 @@ export default function CheckoutPage() {
           placeholder="Notes (optional)"
         />
       </div>
-      <button className="btn">Send on WhatsApp</button>
+      <button className="btn flex items-center gap-1.5">
+        <MessageCircle size={18} />
+        Send on WhatsApp
+      </button>
     </form>
   );
 }

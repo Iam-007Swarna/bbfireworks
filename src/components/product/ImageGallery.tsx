@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight, X, ZoomIn } from "lucide-react";
 
 interface ImageGalleryProps {
   images: { id: string }[];
@@ -11,6 +12,18 @@ interface ImageGalleryProps {
 export function ImageGallery({ images, productName, inStock }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  const goToPrevious = () => {
+    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const goToNext = () => {
+    setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  const closeLightbox = () => {
+    setIsLightboxOpen(false);
+  };
 
   // Keyboard navigation for lightbox
   useEffect(() => {
@@ -28,7 +41,8 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLightboxOpen, currentIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLightboxOpen, currentIndex, images.length]);
 
   if (images.length === 0) {
     return (
@@ -38,21 +52,9 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
     );
   }
 
-  const goToPrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
-  };
-
-  const goToNext = () => {
-    setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
-  };
-
   const openLightbox = (index: number) => {
     setCurrentIndex(index);
     setIsLightboxOpen(true);
-  };
-
-  const closeLightbox = () => {
-    setIsLightboxOpen(false);
   };
 
   return (
@@ -82,18 +84,14 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Previous image"
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+                <ChevronLeft size={24} />
               </button>
               <button
                 onClick={goToNext}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Next image"
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <ChevronRight size={24} />
               </button>
             </>
           )}
@@ -106,7 +104,8 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
           )}
 
           {/* Click to enlarge hint */}
-          <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            <ZoomIn size={14} />
             Click to enlarge
           </div>
         </div>
@@ -145,10 +144,10 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
         >
           <button
             onClick={closeLightbox}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl font-light w-12 h-12 flex items-center justify-center"
+            className="absolute top-4 right-4 text-white hover:text-gray-300 w-12 h-12 flex items-center justify-center"
             aria-label="Close lightbox"
           >
-            ×
+            <X size={32} />
           </button>
 
           {/* Lightbox Image */}
@@ -174,9 +173,7 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
                   className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white rounded-full w-12 h-12 flex items-center justify-center"
                   aria-label="Previous image"
                 >
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  <ChevronLeft size={32} />
                 </button>
                 <button
                   onClick={(e) => {
@@ -186,9 +183,7 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
                   className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white rounded-full w-12 h-12 flex items-center justify-center"
                   aria-label="Next image"
                 >
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRight size={32} />
                 </button>
 
                 {/* Counter in lightbox */}

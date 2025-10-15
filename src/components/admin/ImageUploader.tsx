@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Upload } from "lucide-react";
 
 export function ImageUploader({ productId }: { productId: string }) {
   const router = useRouter();
@@ -53,9 +54,10 @@ export function ImageUploader({ productId }: { productId: string }) {
         />
         <button
           type="submit"
-          className="btn"
+          className="btn flex items-center gap-1.5"
           disabled={uploading}
         >
+          <Upload size={16} />
           {uploading ? "Uploading..." : "Upload"}
         </button>
       </form>
