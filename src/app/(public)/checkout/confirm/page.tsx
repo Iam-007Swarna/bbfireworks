@@ -4,6 +4,7 @@ import { buildWhatsAppLink, formatWhatsAppOrderMessage } from "@/lib/whatsapp";
 import { MessageCircle, Package, User, MapPin, FileText, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import ClearCart from "./ClearCart";
+import CopyButton from "./CopyButton";
 
 export default async function ConfirmOrderPage({
   searchParams,
@@ -65,12 +66,12 @@ export default async function ConfirmOrderPage({
   const whatsappLink = buildWhatsAppLink(waNumber, message);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 pb-64">
       <ClearCart />
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/checkout" className="text-gray-500 hover:text-gray-700">
+        <Link href="/checkout" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
           <ArrowLeft size={20} />
         </Link>
         <h1 className="text-2xl font-semibold">Confirm Your Order</h1>
@@ -176,22 +177,37 @@ export default async function ConfirmOrderPage({
         </ul>
       </div>
 
-      {/* WhatsApp Button */}
-      <div className="sticky bottom-4 space-y-3">
-        <a
-          href={whatsappLink}
-          className="btn btn-lg w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <MessageCircle size={20} />
-          Send Order on WhatsApp
-        </a>
+      {/* Action Buttons - Fixed at bottom */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-lg">
+        <div className="max-w-2xl mx-auto p-4 space-y-3">
+          <a
+            href={whatsappLink}
+            className="btn w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md py-3"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <MessageCircle size={20} />
+            Send Order on WhatsApp
+          </a>
 
-        <div className="text-center">
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">
-            Continue Shopping
-          </Link>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex-1 border-t border-gray-300 dark:border-gray-700"></div>
+            <span>OR</span>
+            <div className="flex-1 border-t border-gray-300 dark:border-gray-700"></div>
+          </div>
+
+          <CopyButton text={message} />
+
+          <p className="text-xs text-center text-gray-500">
+            If WhatsApp doesn&apos;t open, copy the order details and send manually to{" "}
+            <span className="font-medium">{process.env.WHATSAPP_NUMBER || "9830463926"}</span>
+          </p>
+
+          <div className="text-center pt-2">
+            <Link href="/" className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-400">
+              Continue Shopping
+            </Link>
+          </div>
         </div>
       </div>
     </div>
