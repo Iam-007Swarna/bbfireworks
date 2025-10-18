@@ -42,8 +42,73 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "BB Fireworks, Nilganj",
-  description: "BB Fireworks showroom at Nilganj",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://bbfireworks.com'),
+  title: {
+    default: "BB Fireworks, Nilganj | Premium Fireworks & Crackers",
+    template: "%s | BB Fireworks, Nilganj"
+  },
+  description: "Premium quality fireworks and crackers at BB Fireworks showroom in Nilganj. Browse our extensive collection of celebration fireworks, sparklers, and more.",
+  keywords: ["fireworks", "crackers", "Nilganj", "BB Fireworks", "celebration", "diwali", "sparklers", "firecrackers"],
+  authors: [{ name: "BB Fireworks" }],
+  creator: "BB Fireworks",
+  publisher: "BB Fireworks",
+  applicationName: "BB Fireworks",
+
+  // Open Graph
+  openGraph: {
+    type: 'website',
+    locale: 'en_IN',
+    url: '/',
+    siteName: 'BB Fireworks, Nilganj',
+    title: 'BB Fireworks, Nilganj | Premium Fireworks & Crackers',
+    description: 'Premium quality fireworks and crackers at BB Fireworks showroom in Nilganj.',
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'BB Fireworks, Nilganj',
+      },
+    ],
+  },
+
+  // Twitter Card
+  twitter: {
+    card: 'summary_large_image',
+    title: 'BB Fireworks, Nilganj | Premium Fireworks & Crackers',
+    description: 'Premium quality fireworks and crackers at BB Fireworks showroom in Nilganj.',
+    images: ['/og-image.jpg'],
+  },
+
+  // Robots
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+
+  // Icons
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+
+  // Manifest
+  manifest: '/site.webmanifest',
+
+  // Verification
+  verification: {
+    // Add your verification codes here when available
+    // google: 'google-site-verification-code',
+    // yandex: 'yandex-verification-code',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

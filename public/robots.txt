@@ -1,0 +1,17 @@
+# Allow all search engines to index the site
+User-agent: *
+Allow: /
+
+# Disallow admin and authenticated areas
+Disallow: /admin/
+Disallow: /pos/
+Disallow: /api/
+Disallow: /auth/
+
+# Allow product pages and public marketplace
+Allow: /products/
+Allow: /cart
+Allow: /checkout
+
+# Sitemap location
+Sitemap: https://bbfireworks.com/sitemap.xml

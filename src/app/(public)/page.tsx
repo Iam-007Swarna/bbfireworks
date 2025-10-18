@@ -160,7 +160,20 @@ import { ProductFilters } from "@/components/marketplace/ProductFilters";
 
 export const runtime = "nodejs";
 
+// Enable ISR with revalidation
+export const revalidate = 1800; // Revalidate every 30 minutes
+
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
+
+// Metadata for homepage
+export const metadata = {
+  title: 'Shop Premium Fireworks',
+  description: 'Browse our extensive collection of premium fireworks and crackers. Shop safely online or visit our showroom in Nilganj.',
+  openGraph: {
+    title: 'Shop Premium Fireworks | BB Fireworks, Nilganj',
+    description: 'Browse our extensive collection of premium fireworks and crackers.',
+  },
+};
 
 type SortOption = "name-asc" | "name-desc" | "price-asc" | "price-desc";
 type StockFilter = "all" | "in-stock" | "out-of-stock";

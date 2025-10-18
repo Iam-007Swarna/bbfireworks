@@ -324,6 +324,112 @@ export const runtime = "nodejs";
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 
+// Generate static params for top products (ISR for others)
+export async function generateStaticParams() {
+  const products = await prisma.product.findMany({
+    where: {
+      active: true,
+      visibleOnMarketplace: true,
+    },
+    select: { id: true },
+    take: 20, // Pre-generate top 20 products at build time
+  });
+
+  return products.map((product) => ({
+    id: product.id,
+  }));
+}
+
+// Enable ISR with revalidation
+export const revalidate = 3600; // Revalidate every hour
+
+// Generate metadata for SEO
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const product = await prisma.product.findUnique({
+    where: { id, active: true, visibleOnMarketplace: true },
+    select: {
+      name: true,
+      sku: true,
+      description: true,
+      images: { select: { id: true }, take: 1 },
+      prices: {
+        where: {
+          channel: "marketplace",
+          activeFrom: { lte: new Date() },
+          OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
+        },
+        orderBy: { activeFrom: "desc" },
+        take: 1,
+        select: { sellPerPack: true, sellPerPiece: true, sellPerBox: true },
+      },
+    },
+  });
+
+  if (!product) {
+    return {
+      title: 'Product Not Found',
+    };
+  }
+
+  const price = product.prices[0];
+  const productPrice = price?.sellPerPack || price?.sellPerPiece || price?.sellPerBox;
+  const imageId = product.images[0]?.id;
+  const imageUrl = imageId ? `/api/images/${imageId}` : '/og-image.jpg';
+
+  return {
+    title: product.name,
+    description: product.description || `${product.name} - SKU: ${product.sku}. Premium quality fireworks available at BB Fireworks, Nilganj.`,
+    openGraph: {
+      title: product.name,
+      description: product.description || `${product.name} - SKU: ${product.sku}`,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: product.name,
+        },
+      ],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: product.name,
+      description: product.description || `${product.name} - SKU: ${product.sku}`,
+      images: [imageUrl],
+    },
+    alternates: {
+      canonical: `/products/${id}`,
+    },
+    other: {
+      // Structured Data - Product Schema
+      'application-ld+json': JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: product.name,
+        sku: product.sku,
+        description: product.description || `${product.name} - Premium fireworks`,
+        image: imageUrl,
+        offers: productPrice ? {
+          '@type': 'Offer',
+          price: Number(productPrice),
+          priceCurrency: 'INR',
+          availability: 'https://schema.org/InStock',
+          seller: {
+            '@type': 'Organization',
+            name: 'BB Fireworks, Nilganj',
+          },
+        } : undefined,
+        brand: {
+          '@type': 'Brand',
+          name: 'BB Fireworks',
+        },
+      }),
+    },
+  };
+}
+
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const product = await prisma.product.findUnique({
