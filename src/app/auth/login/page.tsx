@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { LogIn, Store } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -113,6 +113,15 @@ export default function LoginPage() {
         >
           <LogIn size={18} />
           {loading ? "Signing in..." : "Sign in"}
+        </button>
+
+        <button
+          type="button"
+          className="btn w-full flex items-center justify-center gap-1.5"
+          onClick={() => router.push("/")}
+        >
+          <Store size={18} />
+          Marketplace
         </button>
       </form>
     </div>
