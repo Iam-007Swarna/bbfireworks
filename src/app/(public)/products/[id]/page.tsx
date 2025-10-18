@@ -311,6 +311,7 @@
 // }
 
 
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { stockMap } from "@/lib/stock";
 import AddToCart from "@/components/cart/AddToCart";
@@ -341,13 +342,39 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   if (!product) return <div>Not found</div>;
 
-  const stock = await stockMap([product.id]);
+  // Fetch recommendations (other products, excluding current one)
+  const recommendations = await prisma.product.findMany({
+    where: {
+      active: true,
+      visibleOnMarketplace: true,
+      id: { not: id },
+    },
+    include: {
+      images: { select: { id: true }, take: 1 },
+      prices: {
+        where: {
+          channel: "marketplace",
+          activeFrom: { lte: new Date() },
+          OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
+        },
+        orderBy: { activeFrom: "desc" },
+        take: 1,
+        select: { sellPerBox: true, sellPerPack: true, sellPerPiece: true },
+      },
+    },
+    take: 4,
+    orderBy: { name: "asc" },
+  });
+
+  const allProductIds = [product.id, ...recommendations.map(p => p.id)];
+  const stock = await stockMap(allProductIds);
   const inStockPieces = stock[product.id] ?? 0;
   const inStock = inStockPieces > 0;
 
   const price = product.prices[0] ?? null;
 
   return (
+    <>
     <div className="grid md:grid-cols-2 gap-8 max-w-7xl mx-auto">
       {/* Left: images */}
       <div>
@@ -400,6 +427,62 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         />
       </div>
     </div>
+
+    {/* Recommendations section */}
+    {recommendations.length > 0 && (
+      <div className="mt-12 max-w-7xl mx-auto">
+        <h2 className="text-xl font-semibold mb-4">You may also like</h2>
+        <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+          {recommendations.map((p) => {
+            const recInStock = (stock[p.id] ?? 0) > 0;
+            const imgId = p.images[0]?.id;
+            const recPrice = p.prices[0];
+
+            // Determine which price to show (prefer pack, then piece, then box)
+            let displayPrice = null;
+            if (recPrice?.sellPerPack) displayPrice = inr.format(Number(recPrice.sellPerPack));
+            else if (recPrice?.sellPerPiece) displayPrice = inr.format(Number(recPrice.sellPerPiece));
+            else if (recPrice?.sellPerBox) displayPrice = inr.format(Number(recPrice.sellPerBox));
+
+            return (
+              <Link
+                key={p.id}
+                href={`/products/${p.id}`}
+                className={`card group relative ${recInStock ? "" : "opacity-70"}`}
+              >
+                {!recInStock && (
+                  <span className="absolute top-2 left-2 z-10 badge bg-red-100 text-red-700 dark:bg-red-600 dark:text-white">
+                    Out of stock
+                  </span>
+                )}
+                {imgId ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/images/${imgId}`}
+                    alt={p.name}
+                    className={`w-full h-40 object-cover rounded ${recInStock ? "" : "grayscale"}`}
+                  />
+                ) : (
+                  <div
+                    className={`h-40 rounded ${recInStock ? "bg-gray-100 dark:bg-gray-800" : "bg-gray-200 dark:bg-gray-700"}`}
+                  />
+                )}
+                <div className="mt-2">
+                  <div className="font-medium truncate">{p.name}</div>
+                  <div className="text-xs text-gray-500">SKU: {p.sku}</div>
+                  {displayPrice && (
+                    <div className="text-sm font-semibold mt-1 text-green-700 dark:text-green-400">
+                      {displayPrice}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </>
   );
 }
 

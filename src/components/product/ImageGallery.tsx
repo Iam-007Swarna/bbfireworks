@@ -150,16 +150,16 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
             <X size={32} />
           </button>
 
-          {/* Lightbox Image */}
+          {/* Lightbox Image - Fixed 150% zoom */}
           <div
-            className="relative max-w-5xl max-h-[90vh] w-full"
+            className="relative w-auto max-w-[60vw] max-h-[70vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/images/${images[currentIndex].id}`}
               alt={`${productName} - Image ${currentIndex + 1}`}
-              className="w-full h-full object-contain"
+              className="w-auto h-auto max-w-full max-h-[70vh] object-contain"
             />
 
             {/* Navigation in lightbox */}
