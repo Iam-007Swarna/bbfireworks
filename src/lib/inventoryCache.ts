@@ -30,6 +30,10 @@ let inventoryCache: CacheEntry | null = null;
 // Cache TTL: 24 hours in milliseconds
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
+// Mutex to prevent concurrent cache refreshes
+let isRefreshing = false;
+let refreshPromise: Promise<void> | null = null;
+
 /**
  * Calculate box/pack/piece breakdown from total pieces
  */
@@ -67,78 +71,96 @@ function isCacheStale(): boolean {
 
 /**
  * Refresh the inventory cache from database
+ * Protected with mutex to prevent concurrent refreshes
  */
 export async function refreshInventoryCache(): Promise<void> {
-  console.log("[InventoryCache] Refreshing inventory cache...");
-  const startTime = Date.now();
-
-  try {
-    // Fetch all active products with their stock data
-    const products = await prisma.product.findMany({
-      where: { active: true },
-      select: {
-        id: true,
-        name: true,
-        piecesPerPack: true,
-        packsPerBox: true,
-      },
-    });
-
-    // Get stock levels for all products in one query
-    const stockData = await prisma.stockLedger.groupBy({
-      by: ["productId"],
-      _sum: { deltaPieces: true },
-      where: {
-        productId: { in: products.map((p) => p.id) },
-      },
-    });
-
-    // Build stock map
-    const stockMap = new Map<string, number>();
-    for (const entry of stockData) {
-      stockMap.set(entry.productId, entry._sum.deltaPieces ?? 0);
-    }
-
-    // Build inventory data
-    const inventoryMap = new Map<string, InventoryData>();
-    const now = new Date();
-
-    for (const product of products) {
-      const totalPieces = stockMap.get(product.id) ?? 0;
-      const units = calculateUnits(
-        totalPieces,
-        product.piecesPerPack,
-        product.packsPerBox
-      );
-
-      inventoryMap.set(product.id, {
-        productId: product.id,
-        productName: product.name,
-        piecesPerPack: product.piecesPerPack,
-        packsPerBox: product.packsPerBox,
-        totalPieces,
-        availableBoxes: units.boxes,
-        availablePacks: units.packs,
-        availablePieces: units.pieces,
-        lastUpdated: now,
-      });
-    }
-
-    // Update cache
-    inventoryCache = {
-      data: inventoryMap,
-      lastRefresh: now,
-    };
-
-    const duration = Date.now() - startTime;
-    console.log(
-      `[InventoryCache] Cache refreshed successfully in ${duration}ms. ` +
-      `${inventoryMap.size} products cached.`
-    );
-  } catch (error) {
-    console.error("[InventoryCache] Failed to refresh cache:", error);
-    throw error;
+  // If already refreshing, wait for that refresh to complete
+  if (isRefreshing && refreshPromise) {
+    console.log("[InventoryCache] Refresh already in progress, waiting...");
+    await refreshPromise;
+    return;
   }
+
+  // Set the refreshing flag and create the promise
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    console.log("[InventoryCache] Refreshing inventory cache...");
+    const startTime = Date.now();
+
+    try {
+      // Fetch all active products with their stock data
+      const products = await prisma.product.findMany({
+        where: { active: true },
+        select: {
+          id: true,
+          name: true,
+          piecesPerPack: true,
+          packsPerBox: true,
+        },
+      });
+
+      // Get stock levels for all products in one query
+      const stockData = await prisma.stockLedger.groupBy({
+        by: ["productId"],
+        _sum: { deltaPieces: true },
+        where: {
+          productId: { in: products.map((p) => p.id) },
+        },
+      });
+
+      // Build stock map
+      const stockMap = new Map<string, number>();
+      for (const entry of stockData) {
+        stockMap.set(entry.productId, entry._sum.deltaPieces ?? 0);
+      }
+
+      // Build inventory data
+      const inventoryMap = new Map<string, InventoryData>();
+      const now = new Date();
+
+      for (const product of products) {
+        const totalPieces = stockMap.get(product.id) ?? 0;
+        const units = calculateUnits(
+          totalPieces,
+          product.piecesPerPack,
+          product.packsPerBox
+        );
+
+        inventoryMap.set(product.id, {
+          productId: product.id,
+          productName: product.name,
+          piecesPerPack: product.piecesPerPack,
+          packsPerBox: product.packsPerBox,
+          totalPieces,
+          availableBoxes: units.boxes,
+          availablePacks: units.packs,
+          availablePieces: units.pieces,
+          lastUpdated: now,
+        });
+      }
+
+      // Update cache
+      inventoryCache = {
+        data: inventoryMap,
+        lastRefresh: now,
+      };
+
+      const duration = Date.now() - startTime;
+      console.log(
+        `[InventoryCache] Cache refreshed successfully in ${duration}ms. ` +
+        `${inventoryMap.size} products cached.`
+      );
+    } catch (error) {
+      console.error("[InventoryCache] Failed to refresh cache:", error);
+      throw error;
+    } finally {
+      // Reset the mutex
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  await refreshPromise;
 }
 
 /**
