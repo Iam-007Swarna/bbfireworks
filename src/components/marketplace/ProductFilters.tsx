@@ -33,7 +33,7 @@ export function ProductFilters({ productCount }: Props) {
         {/* Stock Filter */}
         <select
           name="stock"
-          className="input w-auto text-sm py-1.5"
+          className="input w-auto text-sm py-1.5 rounded-lg dark:[&>option]:bg-black dark:[&>option]:rounded-lg"
           value={currentStock}
           onChange={(e) => updateFilter("stock", e.target.value)}
         >
@@ -45,7 +45,7 @@ export function ProductFilters({ productCount }: Props) {
         {/* Sort */}
         <select
           name="sort"
-          className="input w-auto text-sm py-1.5"
+          className="input w-auto text-sm py-1.5 rounded-lg dark:[&>option]:bg-black dark:[&>option]:rounded-lg"
           value={currentSort}
           onChange={(e) => updateFilter("sort", e.target.value)}
         >

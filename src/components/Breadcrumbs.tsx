@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Home } from "lucide-react";
+import { ChevronRight, Store } from "lucide-react";
 
 export function Breadcrumbs() {
   const pathname = usePathname();
@@ -13,7 +13,7 @@ export function Breadcrumbs() {
   const paths = pathname.split("/").filter(Boolean);
 
   const breadcrumbItems = [
-    { label: "Home", href: "/" },
+    { label: "Marketplace", href: "/" },
   ];
 
   // Build breadcrumb trail
@@ -62,7 +62,7 @@ export function Breadcrumbs() {
                   href={item.href}
                   className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1"
                 >
-                  {index === 0 && <Home size={14} />}
+                  {index === 0 && <Store size={14} />}
                   {item.label}
                 </Link>
               )}

@@ -55,7 +55,7 @@ export default function AddToCart({
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
           <select
-            className="input w-28 dark:bg-black dark:[&>option]:bg-black"
+            className="input w-28 rounded-lg dark:bg-black dark:[&>option]:bg-black dark:[&>option]:rounded-lg"
             value={unit}
             onChange={(e) => setUnit(e.target.value as "box" | "pack" | "piece")}
             onMouseEnter={() => setShowTooltip(true)}

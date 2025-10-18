@@ -1,157 +1,3 @@
-// // // import { prisma } from "@/lib/prisma";
-
-// // // interface Product {
-// // //   id: string;
-// // //   name: string;
-// // //   sku: string;
-// // //   images: { id: string }[];
-// // // }
-
-// // // interface ProductProps {
-// // //   products: Product[];
-// // // }
-
-// // // export default async function Home() {
-// // //   const products = await prisma.product.findMany({
-// // //     where: { active: true, visibleOnMarketplace: true },
-// // //     include: { images: { select: { id: true }, take: 1 } },
-// // //     orderBy: { name: "asc" }
-// // //   });
-
-// // //   return (
-// // //     <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-// // //           {products.map((p: Product) => {
-// // //             const imgId: string | undefined = p.images[0]?.id;
-// // //             return (
-// // //               <a key={p.id} href={`/products/${p.id}`} className="card group">
-// // //                 {imgId ? (
-// // //                   <img src={`/api/images/${imgId}`} alt={p.name} className="w-full h-40 object-cover rounded" />
-// // //                 ) : (
-// // //                   <div className="h-40 bg-gray-100 dark:bg-gray-800 rounded"/>
-// // //                 )}
-// // //                 <div className="mt-2">
-// // //                   <div className="font-medium">{p.name}</div>
-// // //                   <div className="text-xs text-gray-500">SKU: {p.sku}</div>
-// // //                 </div>
-// // //               </a>
-// // //             );
-// // //           })}
-// // //         </div>
-// // //   );
-// // // }
-
-// // import { prisma } from "@/lib/prisma";
-
-// // export const runtime = "nodejs";
-
-// // export default async function Home() {
-// //   // Build the query first so we can infer its return type
-// //   const q = prisma.product.findMany({
-// //     where: { active: true, visibleOnMarketplace: true },
-// //     include: { images: { select: { id: true }, take: 1 } },
-// //     orderBy: { name: "asc" },
-// //   });
-
-// //   type Products = Awaited<typeof q>;
-// //   type Product = Products[number];
-
-// //   const products = await q;
-
-// //   return (
-// //     <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-// //       {products.map((p: Product) => {
-// //         const imgId: string | undefined = p.images[0]?.id;
-// //         return (
-// //           <a key={p.id} href={`/products/${p.id}`} className="card group">
-// //             {imgId ? (
-// //               <img
-// //                 src={`/api/images/${imgId}`}
-// //                 alt={p.name}
-// //                 className="w-full h-40 object-cover rounded"
-// //                 loading="lazy"
-// //               />
-// //             ) : (
-// //               <div className="h-40 bg-gray-100 dark:bg-gray-800 rounded" />
-// //             )}
-// //             <div className="mt-2">
-// //               <div className="font-medium">{p.name}</div>
-// //               <div className="text-xs text-gray-500">SKU: {p.sku}</div>
-// //             </div>
-// //           </a>
-// //         );
-// //       })}
-// //     </div>
-// //   );
-// // }
-
-// import { prisma } from "@/lib/prisma";
-// import { stockMap } from "@/lib/stock";
-// import { Badge } from "@/components/ui/Badge";
-
-// export const runtime = "nodejs";
-
-// export default async function Home() {
-//   // Build the query first so we can infer types
-//   const q = prisma.product.findMany({
-//     where: { active: true, visibleOnMarketplace: true },
-//     include: { images: { select: { id: true }, take: 1 } },
-//     orderBy: { name: "asc" },
-//   });
-//   type Products = Awaited<typeof q>;
-//   type Product = Products[number];
-
-//   const products = await q;
-
-//   // Type the stocks result from the function’s return type
-//   const stocks: Awaited<ReturnType<typeof stockMap>> = await stockMap(
-//     products.map((p: Product) => p.id)
-//   );
-
-//   return (
-//     <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-//       {products.map((p: Product) => {
-//         const imgId = p.images[0]?.id;
-//         const pieces = stocks[p.id] ?? 0;
-//         const out = pieces <= 0;
-
-//         return (
-//           <a
-//             key={p.id}
-//             href={`/products/${p.id}`}
-//             className="card group overflow-hidden"
-//           >
-//             <div className="relative">
-//               {imgId ? (
-//                 <img
-//                   src={`/api/images/${imgId}`}
-//                   alt={p.name}
-//                   className={`w-full h-40 object-cover rounded ${out ? "grayscale" : ""}`}
-//                   loading="lazy"
-//                 />
-//               ) : (
-//                 <div
-//                   className={`h-40 bg-gray-100 dark:bg-gray-800 rounded ${out ? "grayscale" : ""}`}
-//                 />
-//               )}
-//               {out && (
-//                 <span className="absolute top-2 left-2">
-//                   <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
-//                     Out of stock
-//                   </Badge>
-//                 </span>
-//               )}
-//             </div>
-//             <div className="mt-2">
-//               <div className="font-medium">{p.name}</div>
-//               <div className="text-xs text-gray-500">SKU: {p.sku}</div>
-//             </div>
-//           </a>
-//         );
-//       })}
-//     </div>
-//   );
-// }
-
 import Link from "next/link";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
@@ -166,20 +12,20 @@ export const revalidate = 1800; // Revalidate every 30 minutes
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 
-// Metadata for homepage
+// Metadata for products page
 export const metadata = {
-  title: 'Shop Premium Fireworks',
-  description: 'Browse our extensive collection of premium fireworks and crackers. Shop safely online or visit our showroom in Nilganj.',
+  title: 'All Products - Shop Premium Fireworks',
+  description: 'Browse our complete collection of premium fireworks and crackers. Shop safely online or visit our showroom in Nilganj.',
   openGraph: {
-    title: 'Shop Premium Fireworks | BB Fireworks, Nilganj',
-    description: 'Browse our extensive collection of premium fireworks and crackers.',
+    title: 'All Products | BB Fireworks, Nilganj',
+    description: 'Browse our complete collection of premium fireworks and crackers.',
   },
 };
 
 type SortOption = "name-asc" | "name-desc" | "price-asc" | "price-desc";
 type StockFilter = "all" | "in-stock" | "out-of-stock";
 
-export default async function Home({
+export default async function ProductsPage({
   searchParams
 }: {
   searchParams: Promise<{ q?: string; sort?: string; stock?: string }>
@@ -329,7 +175,7 @@ export default async function Home({
               {q ? `No products found matching "${q}"` : "No products found"}
             </p>
             {q && (
-              <Link href="/" className="inline-block text-blue-600 hover:underline dark:text-blue-400">
+              <Link href="/products" className="inline-block text-blue-600 hover:underline dark:text-blue-400">
                 Clear search
               </Link>
             )}
@@ -351,4 +197,3 @@ function SearchBarSkeleton() {
     </div>
   );
 }
-
