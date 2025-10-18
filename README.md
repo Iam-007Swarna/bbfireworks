@@ -382,6 +382,12 @@ Orders are sent via WhatsApp Web link with pre-filled message:
 
 ## Troubleshooting
 
+### Production Issues
+
+**Authentication not working in production?** See [Quick Fix Guide](./docs/QUICK_FIX_GUIDE.md)
+
+**Lucide-react icon errors?** Check the [Production Fixes Documentation](./docs/PRODUCTION_FIXES.md)
+
 ### Build Errors
 
 If you encounter Prisma-related errors:
@@ -403,6 +409,12 @@ npm run build
 - Check file size limits
 - Verify Sharp is installed correctly
 - Ensure proper permissions on temp directories
+
+### Common Production Errors
+
+For detailed troubleshooting of production-specific issues:
+- 📘 [Production Fixes & Troubleshooting Guide](./docs/PRODUCTION_FIXES.md) - Comprehensive documentation
+- 🚀 [Quick Fix Guide](./docs/QUICK_FIX_GUIDE.md) - Quick reference for common issues
 
 ## Contributing
 

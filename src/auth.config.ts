@@ -60,25 +60,19 @@ export const authOptions: NextAuthOptions = {
       return session;
     }
   },
-  // Helps in prod cookies
+  // Cookie configuration
+  // For localhost production testing, we need to avoid __Secure- prefix and secure flag
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production"
-        ? "__Secure-next-auth.session-token"
-        : "next-auth.session-token",
+      name: "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        // Only secure on https, not on localhost production builds
-        secure: process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_URL?.includes("localhost")
+        secure: false  // Set to true only when deploying to HTTPS domain
       }
     }
-  },
-  // Ensure proper base URL handling
-  ...(process.env.NEXTAUTH_URL ? { url: process.env.NEXTAUTH_URL } : {}),
-  // Trust proxy in production
-  trustHost: true
+  }
 };
 
 /**
