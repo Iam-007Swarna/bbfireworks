@@ -7,4 +7,5 @@ sleep 2
 
 # Start production server
 echo "Starting production server..."
+npm run build
 npm start

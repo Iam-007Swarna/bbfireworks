@@ -295,9 +295,14 @@ Warning: Prop `className` did not match. Server: "..." Client: "..."
 
 ### Root Cause
 
-1. **Browser Extensions:** Extensions like form fillers, password managers, or grammar checkers inject attributes into HTML elements
-2. **Dynamic Content:** Content that changes between server and client render
-3. **Complex className Logic:** Conditional className strings that differ between server/client
+**The core issue:** React expects the client's **first render** to match the server HTML exactly. When they differ, you get hydration mismatches—and React won't patch them up automatically.
+
+Common causes:
+
+1. **Browser Extensions (Most Common):** Extensions like McAfee, VPNs, ColorZilla, password managers inject attributes (`fdprocessedid`, `cz-shortcut-listen`, etc.) **before** React hydrates, making client HTML differ from server HTML
+2. **URL Updates During Hydration:** Pushing to the router during the initial render can trigger a re-render that no longer matches the server DOM
+3. **Dynamic Content Without Guard:** Rendering different content on server vs client without proper mounting guards
+4. **Complex className Logic:** Conditional className strings that evaluate differently between server/client
 
 ### Solution
 
@@ -320,9 +325,49 @@ For elements commonly targeted by browser extensions (inputs, selects):
 </select>
 ```
 
-#### Step 2: Two-Pass Rendering for Dynamic Content
+#### Step 2: Block URL Updates During Hydration
 
-For content that must differ between server and client:
+**Critical Fix:** Don't push to router during hydration—this can force a client re-render that no longer matches the server.
+
+**File:** `src/components/marketplace/SearchBar.tsx`
+```typescript
+// WRONG: Runs during hydration, can cause mismatch
+useEffect(() => {
+  const params = new URLSearchParams(searchParams.toString());
+  if (query.trim()) params.set("q", query.trim());
+  router.push(`/?${params.toString()}`);
+}, [query, router, searchParams]);
+
+// CORRECT: Wait until after mount
+const [mounted, setMounted] = useState(false);
+
+useEffect(() => {
+  setMounted(true);
+}, []);
+
+useEffect(() => {
+  if (!mounted) return; // Block during hydration
+
+  // Read from window to avoid searchParams identity issues
+  const params = new URLSearchParams(
+    typeof window !== 'undefined' ? window.location.search : ''
+  );
+
+  if (query.trim()) {
+    params.set("q", query.trim());
+  } else {
+    params.delete("q");
+  }
+
+  router.push(`/?${params.toString()}`);
+}, [query, router, mounted]); // Include mounted in deps
+```
+
+**Why this works:** React's `useEffect` runs **after** hydration completes. By gating URL updates behind the `mounted` flag, we ensure the first client render matches the server, then apply URL changes afterward.
+
+#### Step 3: Two-Pass Rendering for Dynamic Content
+
+For content that must differ between server and client, use the `mounted` pattern:
 
 **File:** `src/components/marketplace/SearchBar.tsx`
 ```typescript
@@ -336,14 +381,15 @@ export function SearchBar({ defaultValue }: Props) {
 
   return (
     <div suppressHydrationWarning>
-      {/* Show stable content on server, dynamic on client */}
-      {mounted && <DynamicButton />}
+      {/* Only render after client mounts */}
+      {mounted && query && <ClearButton />}
+      {mounted && <KeyboardShortcut />}
     </div>
   );
 }
 ```
 
-#### Step 3: Simplify className Strings
+#### Step 4: Simplify className Strings
 
 Remove complex dark mode selectors that may cause issues:
 
@@ -362,21 +408,50 @@ className="input w-auto text-sm py-1.5"  // ✅ Simpler, more stable
 1. **Modified:** `src/components/marketplace/ProductFilters.tsx`
    - Added `suppressHydrationWarning` to select elements
    - Simplified className strings
+   - Prevents browser extension attribute injection warnings
 
 2. **Modified:** `src/components/marketplace/SearchBar.tsx`
-   - Added `mounted` state for two-pass rendering
-   - Added `suppressHydrationWarning` to wrapper div
-   - Conditional rendering of dynamic elements after mount
+   - **Critical:** Added `mounted` guard to URL update effect
+   - Blocks router.push during hydration
+   - Reads URL params from `window.location.search` instead of `searchParams`
+   - Added `suppressHydrationWarning` surgically to dynamic elements
+   - Conditional rendering of client-only content after mount
+
+### How to Verify
+
+**Test for extension interference:**
+```bash
+# 1. Open in incognito/private mode with ALL extensions disabled
+# 2. Check browser console for hydration warnings
+# 3. If warnings disappear, it's an extension issue
+```
+
+**Common culprits:**
+- McAfee WebAdvisor (`fdprocessedid`)
+- ColorZilla (`cz-shortcut-listen`)
+- VPN extensions
+- Password managers
+- Grammar checkers (Grammarly, LanguageTool)
 
 ### Prevention Tips
 
-- ✅ **DO:** Use `suppressHydrationWarning` sparingly for elements targeted by extensions
+- ✅ **DO:** Block router updates during hydration with `mounted` guard
+- ✅ **DO:** Use `suppressHydrationWarning` **only** for elements targeted by extensions
 - ✅ **DO:** Use two-pass rendering (mounted state) for truly dynamic content
-- ✅ **DO:** Test in incognito mode to rule out extension interference
+- ✅ **DO:** Test in incognito mode to diagnose extension issues
 - ✅ **DO:** Keep className strings simple and stable
-- ❌ **DON'T:** Overuse `suppressHydrationWarning` - it hides real issues
+- ✅ **DO:** Read URL from `window.location` to avoid searchParams identity issues
+- ❌ **DON'T:** Push to router during initial render/hydration
+- ❌ **DON'T:** Overuse `suppressHydrationWarning` - it hides real bugs
 - ❌ **DON'T:** Use browser-only APIs (window, localStorage) during initial render
-- ❌ **DON'T:** Generate different content on server vs client
+- ❌ **DON'T:** Generate different content on server vs client without guards
+- ❌ **DON'T:** Assume mismatches will be "patched up" - React requires exact parity
+
+### References
+
+- [Next.js Hydration Error Docs](https://nextjs.org/docs/messages/react-hydration-error)
+- [React hydrateRoot](https://react.dev/reference/react-dom/client/hydrateRoot)
+- [Stack Overflow: Extension-caused hydration errors](https://stackoverflow.com/questions/73162551/how-to-solve-react-hydration-error-in-nextjs)
 
 ---
 

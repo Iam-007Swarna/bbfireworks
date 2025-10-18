@@ -18,7 +18,6 @@ type Props = {
 
 export function SearchBar({ defaultValue }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [query, setQuery] = useState(defaultValue ?? "");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -94,13 +93,19 @@ export function SearchBar({ defaultValue }: Props) {
   }, [query]);
 
   // Debounced search - automatically update URL params
+  // IMPORTANT: Don't push URL during hydration to avoid client/server mismatch
   useEffect(() => {
+    if (!mounted) return; // Block during hydration
+
     if (urlTimeoutRef.current) {
       clearTimeout(urlTimeoutRef.current);
     }
 
     urlTimeoutRef.current = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
+      // Read from window to avoid searchParams identity issues during hydration
+      const params = new URLSearchParams(
+        typeof window !== 'undefined' ? window.location.search : ''
+      );
 
       if (query.trim()) {
         params.set("q", query.trim());
@@ -116,7 +121,7 @@ export function SearchBar({ defaultValue }: Props) {
         clearTimeout(urlTimeoutRef.current);
       }
     };
-  }, [query, router, searchParams]);
+  }, [query, router, mounted]); // Added mounted dependency
 
   // Keyboard shortcut: Ctrl/Cmd + K to focus search
   useEffect(() => {
@@ -210,7 +215,10 @@ export function SearchBar({ defaultValue }: Props) {
               </button>
             )}
             {mounted && (
-              <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
+              <kbd
+                className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded"
+                suppressHydrationWarning
+              >
                 <Command size={10} />K
               </kbd>
             )}
@@ -254,7 +262,7 @@ export function SearchBar({ defaultValue }: Props) {
         </div>
       </div>
       {mounted && query && query.length >= 2 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500 dark:text-gray-400" suppressHydrationWarning>
           {suggestions.length > 0
             ? `Found ${suggestions.length} suggestion${suggestions.length === 1 ? "" : "s"}`
             : "No suggestions found"}
