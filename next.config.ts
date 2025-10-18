@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // Exclude pdfkit from bundling optimization - works with both webpack and turbopack
   serverExternalPackages: ['pdfkit'],
 
+  // Note: optimizePackageImports is not yet stable in Next.js 15.5.5
+  // The code changes below handle lucide-react imports properly
+
   // Image optimization configuration
   images: {
     formats: ['image/webp', 'image/avif'],

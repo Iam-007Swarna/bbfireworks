@@ -70,10 +70,15 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production"
+        // Only secure on https, not on localhost production builds
+        secure: process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_URL?.includes("localhost")
       }
     }
-  }
+  },
+  // Ensure proper base URL handling
+  ...(process.env.NEXTAUTH_URL ? { url: process.env.NEXTAUTH_URL } : {}),
+  // Trust proxy in production
+  trustHost: true
 };
 
 /**
