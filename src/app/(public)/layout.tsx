@@ -30,7 +30,7 @@ export default function PublicLayout({
           <PublicHeader />
         </div>
       </header>
-      <main className="container mx-auto p-4 min-h-screen">{children}</main>
+      <main className="container mx-auto p-4">{children}</main>
     </SessionProviderWrapper>
   );
 }

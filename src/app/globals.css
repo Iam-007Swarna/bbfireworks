@@ -58,7 +58,6 @@ html[data-theme="dark"] {
 @tailwind utilities;
 
 /* Base */
-html, body { height: 100%; }
 body {
   background: var(--color-background);
   color: var(--color-foreground);
