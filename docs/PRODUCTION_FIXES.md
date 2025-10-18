@@ -277,6 +277,109 @@ graph TD
 
 ---
 
+## Hydration Mismatch Errors
+
+### Problem Description
+
+**Error Message:**
+```
+Hydration failed because the server rendered HTML didn't match the client.
+Warning: Prop `className` did not match. Server: "..." Client: "..."
+```
+
+**Symptoms:**
+- Console warnings about hydration mismatches
+- className differences between server and client
+- Browser extensions injecting attributes (e.g., `fdprocessedid`)
+- Form elements showing hydration warnings
+
+### Root Cause
+
+1. **Browser Extensions:** Extensions like form fillers, password managers, or grammar checkers inject attributes into HTML elements
+2. **Dynamic Content:** Content that changes between server and client render
+3. **Complex className Logic:** Conditional className strings that differ between server/client
+
+### Solution
+
+#### Step 1: Use `suppressHydrationWarning` for Form Elements
+
+For elements commonly targeted by browser extensions (inputs, selects):
+
+**File:** `src/components/marketplace/ProductFilters.tsx`
+```typescript
+<select
+  name="stock"
+  className="input w-auto text-sm py-1.5"
+  value={currentStock}
+  onChange={(e) => updateFilter("stock", e.target.value)}
+  suppressHydrationWarning  // ✅ Suppress extension-caused mismatches
+>
+  <option value="all">All Products</option>
+  <option value="in-stock">In Stock Only</option>
+  <option value="out-of-stock">Out of Stock</option>
+</select>
+```
+
+#### Step 2: Two-Pass Rendering for Dynamic Content
+
+For content that must differ between server and client:
+
+**File:** `src/components/marketplace/SearchBar.tsx`
+```typescript
+export function SearchBar({ defaultValue }: Props) {
+  const [mounted, setMounted] = useState(false);
+
+  // Wait for client-side mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  return (
+    <div suppressHydrationWarning>
+      {/* Show stable content on server, dynamic on client */}
+      {mounted && <DynamicButton />}
+    </div>
+  );
+}
+```
+
+#### Step 3: Simplify className Strings
+
+Remove complex dark mode selectors that may cause issues:
+
+**Before:**
+```typescript
+className="input w-auto text-sm py-1.5 rounded-lg dark:[&>option]:bg-black dark:[&>option]:rounded-lg"
+```
+
+**After:**
+```typescript
+className="input w-auto text-sm py-1.5"  // ✅ Simpler, more stable
+```
+
+### Files Modified
+
+1. **Modified:** `src/components/marketplace/ProductFilters.tsx`
+   - Added `suppressHydrationWarning` to select elements
+   - Simplified className strings
+
+2. **Modified:** `src/components/marketplace/SearchBar.tsx`
+   - Added `mounted` state for two-pass rendering
+   - Added `suppressHydrationWarning` to wrapper div
+   - Conditional rendering of dynamic elements after mount
+
+### Prevention Tips
+
+- ✅ **DO:** Use `suppressHydrationWarning` sparingly for elements targeted by extensions
+- ✅ **DO:** Use two-pass rendering (mounted state) for truly dynamic content
+- ✅ **DO:** Test in incognito mode to rule out extension interference
+- ✅ **DO:** Keep className strings simple and stable
+- ❌ **DON'T:** Overuse `suppressHydrationWarning` - it hides real issues
+- ❌ **DON'T:** Use browser-only APIs (window, localStorage) during initial render
+- ❌ **DON'T:** Generate different content on server vs client
+
+---
+
 ## Troubleshooting Guide
 
 ### Issue 1: "Module factory is not available" Error

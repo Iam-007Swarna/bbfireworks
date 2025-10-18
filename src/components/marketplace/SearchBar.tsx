@@ -23,10 +23,16 @@ export function SearchBar({ defaultValue }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const urlTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Client-side cache to reduce DB calls
   const cacheRef = useRef<Map<string, { data: Suggestion[]; timestamp: number }>>(new Map());
@@ -170,79 +176,84 @@ export function SearchBar({ defaultValue }: Props) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="relative flex-1">
-        <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10"
-          size={18}
-        />
-        <input
-          ref={inputRef}
-          name="q"
-          type="text"
-          className="input w-full pl-10 pr-20"
-          placeholder="Search by name or SKU..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (suggestions.length > 0) setShowSuggestions(true);
-          }}
-          autoComplete="off"
-        />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {query && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-              title="Clear search"
-            >
-              <X size={16} className="text-gray-500" />
-            </button>
-          )}
-          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
-            <Command size={10} />K
-          </kbd>
-        </div>
-
-        {/* Suggestions Dropdown */}
-        {showSuggestions && suggestions.length > 0 && (
-          <div
-            ref={suggestionsRef}
-            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50"
-          >
-            {suggestions.map((suggestion, index) => (
-              <Link
-                key={suggestion.id}
-                href={`/products/${suggestion.id}`}
-                className={`flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
-                  index === selectedIndex ? "bg-gray-50 dark:bg-gray-700" : ""
-                }`}
-                onClick={() => setShowSuggestions(false)}
+    <div className="space-y-2" suppressHydrationWarning>
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10"
+            size={18}
+          />
+          <input
+            ref={inputRef}
+            name="q"
+            type="text"
+            className="input w-full pl-10 pr-20"
+            placeholder="Search by name or SKU..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (suggestions.length > 0) setShowSuggestions(true);
+            }}
+            autoComplete="off"
+            suppressHydrationWarning
+          />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {mounted && query && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                title="Clear search"
               >
-                {suggestion.images[0]?.id ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={`/api/images/${suggestion.images[0].id}`}
-                    alt={suggestion.name}
-                    className="w-12 h-12 object-cover rounded"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
-                    <Search size={16} className="text-gray-400" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{suggestion.name}</div>
-                  <div className="text-xs text-gray-500">SKU: {suggestion.sku}</div>
-                </div>
-              </Link>
-            ))}
+                <X size={16} className="text-gray-500" />
+              </button>
+            )}
+            {mounted && (
+              <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded">
+                <Command size={10} />K
+              </kbd>
+            )}
           </div>
-        )}
+
+          {/* Suggestions Dropdown */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div
+              ref={suggestionsRef}
+              className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50"
+            >
+              {suggestions.map((suggestion, index) => (
+                <Link
+                  key={suggestion.id}
+                  href={`/products/${suggestion.id}`}
+                  className={`flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
+                    index === selectedIndex ? "bg-gray-50 dark:bg-gray-700" : ""
+                  }`}
+                  onClick={() => setShowSuggestions(false)}
+                >
+                  {suggestion.images[0]?.id ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/images/${suggestion.images[0].id}`}
+                      alt={suggestion.name}
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
+                      <Search size={16} className="text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{suggestion.name}</div>
+                    <div className="text-xs text-gray-500">SKU: {suggestion.sku}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      {query && query.length >= 2 && (
+      {mounted && query && query.length >= 2 && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {suggestions.length > 0
             ? `Found ${suggestions.length} suggestion${suggestions.length === 1 ? "" : "s"}`
