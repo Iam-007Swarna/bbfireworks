@@ -8,10 +8,8 @@ import { Store } from "lucide-react";
 
 export default function PublicLayout({
   children,
-  modal,
 }: {
   children: ReactNode;
-  modal: ReactNode;
 }) {
   return (
     <SessionProviderWrapper>
@@ -33,7 +31,6 @@ export default function PublicLayout({
         </div>
       </header>
       <main className="container mx-auto p-4 min-h-screen">{children}</main>
-      {modal}
     </SessionProviderWrapper>
   );
 }

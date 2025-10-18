@@ -314,8 +314,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { stockMap } from "@/lib/stock";
+import { getInventory } from "@/lib/inventoryCache";
 import AddToCart from "@/components/cart/AddToCart";
 import { ImageGallery } from "@/components/product/ImageGallery";
+import { LowStockAlert } from "@/components/inventory/LowStockAlert";
+import { StockDisplay } from "@/components/product/StockDisplay";
 
 export const runtime = "nodejs";
 
@@ -342,7 +345,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   if (!product) return <div>Not found</div>;
 
-  // Fetch recommendations (other products, excluding current one)
+  // Fetch recommendations (other products)
   const recommendations = await prisma.product.findMany({
     where: {
       active: true,
@@ -366,12 +369,31 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     orderBy: { name: "asc" },
   });
 
-  const allProductIds = [product.id, ...recommendations.map(p => p.id)];
+  const finalRecommendations = recommendations;
+
+  const allProductIds = [product.id, ...finalRecommendations.map(p => p.id)];
   const stock = await stockMap(allProductIds);
   const inStockPieces = stock[product.id] ?? 0;
   const inStock = inStockPieces > 0;
 
+  // Get detailed inventory from cache (with box/pack/piece breakdown)
+  const inventory = await getInventory(product.id);
+
   const price = product.prices[0] ?? null;
+
+  // Get the best starting price for display
+  let startingPrice = null;
+  let startingPriceUnit = "";
+  if (price?.sellPerPack) {
+    startingPrice = Number(price.sellPerPack);
+    startingPriceUnit = "pack";
+  } else if (price?.sellPerPiece) {
+    startingPrice = Number(price.sellPerPiece);
+    startingPriceUnit = "piece";
+  } else if (price?.sellPerBox) {
+    startingPrice = Number(price.sellPerBox);
+    startingPriceUnit = "box";
+  }
 
   return (
     <>
@@ -384,35 +406,111 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           inStock={inStock}
         />
         {!inStock && (
-          <div className="mt-3 text-sm text-red-600 dark:text-red-400">
+          <div className="mt-3 text-sm text-red-600 dark:text-red-400 font-medium">
             Currently out of stock.
           </div>
         )}
       </div>
 
       {/* Right: details */}
-      <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">{product.name}</h1>
-        <div className="text-sm text-gray-500">SKU: {product.sku}</div>
+      <div className="space-y-4">
+        {/* Title */}
+        <div>
+          <h1 className="text-3xl font-bold">{product.name}</h1>
+          <div className="mt-1 text-sm text-gray-500">SKU: {product.sku}</div>
+        </div>
 
-        <div className="space-y-1 text-sm">
-          <div>
-            Units: <b>{product.piecesPerPack}</b> pcs/pack ·{" "}
-            <b>{product.packsPerBox}</b> packs/box
+        {/* Price Display - Prominent */}
+        {startingPrice && (
+          <div className="card p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
+            <div className="text-sm text-gray-600 dark:text-gray-400">Starting from</div>
+            <div className="text-3xl font-bold text-green-700 dark:text-green-400">
+              {inr.format(startingPrice)}
+              <span className="text-base font-normal text-gray-600 dark:text-gray-400 ml-2">
+                per {startingPriceUnit}
+              </span>
+            </div>
           </div>
-          <div className="opacity-80">
-            Stock (pieces): <b>{inStockPieces}</b>
+        )}
+
+        {/* Low Stock Alert - Show if any unit has less than 10 available */}
+        {inventory && inStock && (
+          <LowStockAlert
+            availableBoxes={inventory.availableBoxes}
+            availablePacks={inventory.availablePacks}
+            availablePieces={inventory.availablePieces}
+            piecesPerPack={inventory.piecesPerPack}
+            packsPerBox={inventory.packsPerBox}
+            threshold={10}
+            showDetails={true}
+          />
+        )}
+
+        {/* Stock Status */}
+        <div className="flex items-center gap-2">
+          {inStock ? (
+            <>
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                In Stock
+              </span>
+            </>
+          ) : (
+            <>
+              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+              <span className="text-sm font-medium text-red-700 dark:text-red-400">Out of Stock</span>
+            </>
+          )}
+        </div>
+
+        {/* Detailed Stock Display */}
+        {inventory && inStock && (
+          <StockDisplay
+            availableBoxes={inventory.availableBoxes}
+            availablePacks={inventory.availablePacks}
+            availablePieces={inventory.availablePieces}
+            piecesPerPack={inventory.piecesPerPack}
+            packsPerBox={inventory.packsPerBox}
+            compact={false}
+          />
+        )}
+
+        {/* Product Details */}
+        <div className="card p-4 space-y-2">
+          <h3 className="font-semibold text-sm">Product Details</h3>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="text-gray-600 dark:text-gray-400">Pieces per Pack:</div>
+            <div className="font-medium">{product.piecesPerPack}</div>
+            <div className="text-gray-600 dark:text-gray-400">Packs per Box:</div>
+            <div className="font-medium">{product.packsPerBox}</div>
+            <div className="text-gray-600 dark:text-gray-400">Total per Box:</div>
+            <div className="font-medium">{product.piecesPerPack * product.packsPerBox} pieces</div>
           </div>
         </div>
 
-        {/* Marketplace prices */}
+        {/* All Pricing Options */}
         {price && (
-          <div className="card p-3 space-y-1 text-sm">
-            <div className="font-medium">Marketplace prices</div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>Box: {price.sellPerBox ? inr.format(Number(price.sellPerBox)) : "—"}</div>
-              <div>Pack: {price.sellPerPack ? inr.format(Number(price.sellPerPack)) : "—"}</div>
-              <div>Piece: {price.sellPerPiece ? inr.format(Number(price.sellPerPiece)) : "—"}</div>
+          <div className="card p-4 space-y-3">
+            <h3 className="font-semibold text-sm">All Pricing Options</h3>
+            <div className="space-y-2">
+              {price.sellPerBox && (
+                <div className="flex justify-between items-center p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                  <span className="text-sm">Per Box</span>
+                  <span className="font-semibold">{inr.format(Number(price.sellPerBox))}</span>
+                </div>
+              )}
+              {price.sellPerPack && (
+                <div className="flex justify-between items-center p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                  <span className="text-sm">Per Pack</span>
+                  <span className="font-semibold">{inr.format(Number(price.sellPerPack))}</span>
+                </div>
+              )}
+              {price.sellPerPiece && (
+                <div className="flex justify-between items-center p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                  <span className="text-sm">Per Piece</span>
+                  <span className="font-semibold">{inr.format(Number(price.sellPerPiece))}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -429,11 +527,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     </div>
 
     {/* Recommendations section */}
-    {recommendations.length > 0 && (
+    {finalRecommendations.length > 0 && (
       <div className="mt-12 max-w-7xl mx-auto">
-        <h2 className="text-xl font-semibold mb-4">You may also like</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          You may also like
+        </h2>
         <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
-          {recommendations.map((p) => {
+          {finalRecommendations.map((p) => {
             const recInStock = (stock[p.id] ?? 0) > 0;
             const imgId = p.images[0]?.id;
             const recPrice = p.prices[0];

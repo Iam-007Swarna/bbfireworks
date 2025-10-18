@@ -1,15 +1,16 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 /** Collect cart from localStorage at mount time - uses "bbf_cart" key */
 export default function CartToHidden() {
-  const ref = useRef<HTMLInputElement>(null);
+  const [cartData, setCartData] = useState("[]");
 
   useEffect(() => {
-    const payload = JSON.parse(localStorage.getItem("bbf_cart") || "[]");
-    if (ref.current) ref.current.value = JSON.stringify(payload);
+    const payload = localStorage.getItem("bbf_cart") || "[]";
+    console.log("[CartToHidden] Loading cart data from localStorage:", payload);
+    setCartData(payload);
   }, []);
 
-  return <input ref={ref} name="items" type="hidden" defaultValue="[]" />;
+  return <input name="items" type="hidden" value={cartData} readOnly />;
 }

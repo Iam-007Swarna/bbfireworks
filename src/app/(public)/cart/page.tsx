@@ -96,6 +96,7 @@ export default async function CartPage() {
       allowSellBox: true,
       allowSellPack: true,
       allowSellPiece: true,
+      images: { select: { id: true }, take: 1 },
       prices: {
         where: {
           channel: "marketplace",
@@ -113,6 +114,8 @@ export default async function CartPage() {
     string,
     { box: number | null; pack: number | null; piece: number | null }
   > = {};
+  const imageMap: Record<string, string | null> = {};
+
   for (const p of products) {
     const pr = p.prices[0];
     priceMap[p.id] = {
@@ -120,7 +123,8 @@ export default async function CartPage() {
       pack: pr?.sellPerPack ? Number(pr.sellPerPack) : null,
       piece: pr?.sellPerPiece ? Number(pr.sellPerPiece) : null,
     };
+    imageMap[p.id] = p.images[0]?.id ?? null;
   }
 
-  return <CartClient priceMap={priceMap} />;
+  return <CartClient priceMap={priceMap} imageMap={imageMap} />;
 }

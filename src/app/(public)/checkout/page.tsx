@@ -195,8 +195,10 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { toPieces } from "@/lib/units";
 import { Decimal } from "@prisma/client/runtime/library";
-import CartToHidden from "./CartToHidden";
-import SubmitButton from "./SubmitButton";
+import { CheckoutForm } from "@/components/checkout/CheckoutForm";
+import { CartSummary } from "@/components/checkout/CartSummary";
+import { CheckoutGuard } from "@/components/checkout/CheckoutGuard";
+import Link from "next/link";
 
 type CartItem = {
   productId: string;
@@ -217,7 +219,7 @@ type ProductWithPrice = {
   }>;
 };
 
-async function createOrder(formData: FormData) {
+async function createOrder(formData: FormData): Promise<void> {
   "use server";
 
   try {
@@ -225,6 +227,8 @@ async function createOrder(formData: FormData) {
     const phone = String(formData.get("phone") || "").trim();
     const address = String(formData.get("address") || "").trim();
     const note = String(formData.get("note") || "").trim();
+
+    console.log("[createOrder] Starting order creation for:", { name, phone });
 
     // Validation
     if (!name || name.length < 2) {
@@ -237,15 +241,19 @@ async function createOrder(formData: FormData) {
 
     // Changed: Use "items" to match the existing cart localStorage key
     const raw = String(formData.get("items") || "[]");
+    console.log("[createOrder] Raw cart data from form:", raw);
 
     let items: CartItem[] = [];
     try {
       items = JSON.parse(raw) as CartItem[];
-    } catch {
+      console.log("[createOrder] Parsed cart items:", items.length, "items");
+    } catch (err) {
+      console.error("[createOrder] Failed to parse cart data:", err);
       throw new Error("Invalid cart data");
     }
 
     if (!items.length) {
+      console.log("[createOrder] No items in cart, redirecting to /cart");
       redirect("/cart");
     }
 
@@ -333,98 +341,116 @@ async function createOrder(formData: FormData) {
     // This prevents stock loss if user doesn't send the WhatsApp message
 
     // Redirect to confirmation page instead of directly to WhatsApp
+    console.log("[createOrder] Order created successfully:", order.id, "- Redirecting to confirm page");
     redirect(`/checkout/confirm?orderId=${order.id}`);
   } catch (error) {
-    // Next.js redirect() throws a special error to perform the redirect
-    // We need to check if it's a redirect and re-throw it, otherwise handle the actual error
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+    // Next.js redirect() throws NEXT_REDIRECT which we should re-throw
+    // Check by digest property which is how Next.js 15+ identifies redirects
+    if (
+      error &&
+      typeof error === 'object' &&
+      'digest' in error &&
+      typeof error.digest === 'string' &&
+      error.digest.startsWith('NEXT_REDIRECT')
+    ) {
       throw error;
     }
 
     // This is an actual error, log it
     console.error("Order creation error:", error);
 
-    // Redirect to checkout with error (in a real app, you'd show this in the UI)
-    redirect("/cart?error=checkout_failed");
+    // Redirect back to checkout with error message
+    const errorMessage = error instanceof Error ? error.message : "An error occurred during checkout";
+    redirect(`/checkout?error=${encodeURIComponent(errorMessage)}`);
   }
 }
 
-export default function CheckoutPage() {
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+
+  // Fetch products for cart summary pricing
+  const now = new Date();
+  const products = await prisma.product.findMany({
+    where: { active: true, visibleOnMarketplace: true },
+    select: {
+      id: true,
+      prices: {
+        where: {
+          channel: "marketplace",
+          activeFrom: { lte: now },
+          OR: [{ activeTo: null }, { activeTo: { gte: now } }],
+        },
+        orderBy: { activeFrom: "desc" },
+        take: 1,
+        select: { sellPerBox: true, sellPerPack: true, sellPerPiece: true },
+      },
+    },
+  });
+
+  const priceMap: Record<
+    string,
+    { box: number | null; pack: number | null; piece: number | null }
+  > = {};
+  for (const p of products) {
+    const pr = p.prices[0];
+    priceMap[p.id] = {
+      box: pr?.sellPerBox ? Number(pr.sellPerBox) : null,
+      pack: pr?.sellPerPack ? Number(pr.sellPerPack) : null,
+      piece: pr?.sellPerPiece ? Number(pr.sellPerPiece) : null,
+    };
+  }
+
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <h1 className="text-2xl font-semibold">Checkout</h1>
+    <CheckoutGuard>
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-semibold mb-6">Checkout</h1>
 
-      <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-        <p className="text-sm text-blue-700 dark:text-blue-300">
-          💡 Complete your order details below. You&apos;ll review everything before sending to WhatsApp.
-        </p>
-      </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Main checkout form */}
+          <div className="lg:col-span-2 space-y-4">
+            {error && (
+              <div className="card p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+                <div className="flex items-start gap-2">
+                  <span className="text-red-600 dark:text-red-400 text-lg">⚠️</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900 dark:text-red-100">Error</h3>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+                    {error.includes("out of stock") && (
+                      <div className="mt-3">
+                        <Link
+                          href="/cart"
+                          className="btn btn-sm bg-red-600 text-white hover:bg-red-700 border-red-600 inline-flex items-center gap-1"
+                        >
+                          Go to Cart
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-      <form action={createOrder} className="space-y-4">
-        <CartToHidden />
-
-        <div className="card p-4 space-y-4">
-          <h2 className="font-semibold">Customer Information</h2>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="name"
-                className="input"
-                name="name"
-                placeholder="Enter your name"
-                required
-              />
+            <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                💡 Complete your order details below. You&apos;ll review everything before sending to WhatsApp.
+              </p>
             </div>
 
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium mb-1">
-                Phone Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="phone"
-                className="input"
-                name="phone"
-                type="tel"
-                placeholder="10-digit mobile number"
-                pattern="[0-9]{10}"
-                required
-              />
-            </div>
+            <CheckoutForm action={createOrder} />
+          </div>
 
-            <div className="sm:col-span-2">
-              <label htmlFor="address" className="block text-sm font-medium mb-1">
-                Delivery Address <span className="text-gray-400">(Optional)</span>
-              </label>
-              <textarea
-                id="address"
-                className="input"
-                name="address"
-                rows={3}
-                placeholder="Enter delivery address or leave blank for store pickup"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label htmlFor="note" className="block text-sm font-medium mb-1">
-                Special Instructions <span className="text-gray-400">(Optional)</span>
-              </label>
-              <textarea
-                id="note"
-                className="input"
-                name="note"
-                rows={2}
-                placeholder="Any special requests or delivery instructions"
-              />
+          {/* Sidebar - Cart Summary */}
+          <div className="lg:col-span-1">
+            <div className="lg:sticky lg:top-4">
+              <CartSummary priceMap={priceMap} />
             </div>
           </div>
         </div>
-
-        <SubmitButton />
-      </form>
-    </div>
+      </div>
+    </CheckoutGuard>
   );
 }
