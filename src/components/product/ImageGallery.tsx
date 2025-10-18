@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, X, ZoomIn } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
 interface ImageGalleryProps {
   images: { id: string }[];
@@ -12,18 +12,52 @@ interface ImageGalleryProps {
 export function ImageGallery({ images, productName, inStock }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const goToPrevious = () => {
     setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+    setZoomLevel(1); // Reset zoom when changing images
   };
 
   const goToNext = () => {
     setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+    setZoomLevel(1); // Reset zoom when changing images
   };
 
   const closeLightbox = () => {
     setIsLightboxOpen(false);
+    setZoomLevel(1);
   };
+
+  const zoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 0.5, 3));
+  };
+
+  const zoomOut = () => {
+    setZoomLevel((prev) => Math.max(prev - 0.5, 0.5));
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  // Preload adjacent images
+  useEffect(() => {
+    if (images.length <= 1) return;
+
+    const nextIndex = (currentIndex + 1) % images.length;
+    const prevIndex = (currentIndex - 1 + images.length) % images.length;
+
+    // Preload next and previous images
+    const preloadNext = new Image();
+    const preloadPrev = new Image();
+    preloadNext.src = `/api/images/${images[nextIndex].id}`;
+    preloadPrev.src = `/api/images/${images[prevIndex].id}`;
+  }, [currentIndex, images]);
 
   // Keyboard navigation for lightbox
   useEffect(() => {
@@ -36,13 +70,19 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
         goToPrevious();
       } else if (e.key === "ArrowRight") {
         goToNext();
+      } else if (e.key === "+" || e.key === "=") {
+        zoomIn();
+      } else if (e.key === "-" || e.key === "_") {
+        zoomOut();
+      } else if (e.key === "f" || e.key === "F") {
+        toggleFullscreen();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLightboxOpen, currentIndex, images.length]);
+  }, [isLightboxOpen, currentIndex, images.length, zoomLevel]);
 
   if (images.length === 0) {
     return (
@@ -142,24 +182,71 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
           onClick={closeLightbox}
         >
-          <button
-            onClick={closeLightbox}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 w-12 h-12 flex items-center justify-center"
-            aria-label="Close lightbox"
-          >
-            <X size={32} />
-          </button>
+          {/* Top Controls */}
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFullscreen();
+              }}
+              className="text-white hover:text-gray-300 w-10 h-10 flex items-center justify-center bg-black/50 rounded"
+              aria-label="Toggle fullscreen"
+              title="Fullscreen (F)"
+            >
+              <Maximize2 size={20} />
+            </button>
+            <button
+              onClick={closeLightbox}
+              className="text-white hover:text-gray-300 w-10 h-10 flex items-center justify-center bg-black/50 rounded"
+              aria-label="Close lightbox"
+              title="Close (ESC)"
+            >
+              <X size={24} />
+            </button>
+          </div>
 
-          {/* Lightbox Image - Fixed 150% zoom */}
+          {/* Zoom Controls */}
+          <div className="absolute top-4 left-4 flex flex-col gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                zoomIn();
+              }}
+              className="text-white hover:text-gray-300 w-10 h-10 flex items-center justify-center bg-black/50 rounded"
+              aria-label="Zoom in"
+              title="Zoom In (+)"
+              disabled={zoomLevel >= 3}
+            >
+              <ZoomIn size={20} />
+            </button>
+            <div className="text-white text-xs text-center bg-black/50 rounded px-2 py-1">
+              {Math.round(zoomLevel * 100)}%
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                zoomOut();
+              }}
+              className="text-white hover:text-gray-300 w-10 h-10 flex items-center justify-center bg-black/50 rounded"
+              aria-label="Zoom out"
+              title="Zoom Out (-)"
+              disabled={zoomLevel <= 0.5}
+            >
+              <ZoomOut size={20} />
+            </button>
+          </div>
+
+          {/* Lightbox Image with Zoom */}
           <div
-            className="relative w-auto max-w-[60vw] max-h-[70vh]"
+            className="relative overflow-auto max-w-[90vw] max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/images/${images[currentIndex].id}`}
               alt={`${productName} - Image ${currentIndex + 1}`}
-              className="w-auto h-auto max-w-full max-h-[70vh] object-contain"
+              className="w-auto h-auto object-contain transition-transform duration-200"
+              style={{ transform: `scale(${zoomLevel})` }}
             />
 
             {/* Navigation in lightbox */}
@@ -195,8 +282,13 @@ export function ImageGallery({ images, productName, inStock }: ImageGalleryProps
           </div>
 
           {/* Keyboard hint */}
-          <div className="absolute bottom-4 right-4 text-white/60 text-sm">
-            Press ESC to close
+          <div className="absolute bottom-4 right-4 text-white/70 text-xs bg-black/50 px-3 py-2 rounded">
+            <div className="flex gap-4">
+              <span>ESC: Close</span>
+              <span>←→: Navigate</span>
+              <span>+−: Zoom</span>
+              <span>F: Fullscreen</span>
+            </div>
           </div>
         </div>
       )}
