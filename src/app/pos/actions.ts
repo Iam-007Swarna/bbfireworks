@@ -1,3 +1,265 @@
+// "use server";
+
+// import { prisma } from "@/lib/prisma";
+// import { revalidatePath } from "next/cache";
+// import { redirect } from "next/navigation";
+// import { z } from "zod";
+// import { toPieces, Unit } from "@/lib/units";
+// import { consumeFIFOOnce } from "@/lib/fifo";
+// import { nextInvoiceNumberTx } from "./helpers";
+// import type { Prisma } from "@prisma/client";
+// import { getAllInventory, refreshInventoryCache, getInventoryMap } from "@/lib/inventoryCache";
+
+// /** Server: fetch active products + active retail price */
+// export async function productsForPOS() {
+//   const now = new Date();
+
+//   const products = await prisma.product.findMany({
+//     where: { active: true },
+//     select: {
+//       id: true,
+//       name: true,
+//       sku: true,
+//       piecesPerPack: true,
+//       packsPerBox: true,
+//       allowSellBox: true,
+//       allowSellPack: true,
+//       allowSellPiece: true,
+//       prices: {
+//         where: {
+//           channel: "retail",
+//           activeFrom: { lte: now },
+//           OR: [{ activeTo: null }, { activeTo: { gte: now } }],
+//         },
+//         orderBy: { activeFrom: "desc" },
+//         take: 1,
+//         select: { sellPerBox: true, sellPerPack: true, sellPerPiece: true },
+//       },
+//     },
+//     orderBy: { name: "asc" },
+//   });
+
+//   // Explicitly type the products array to fix map errors
+//   type ProductWithPrice = typeof products[number];
+
+//   // Get inventory data with box/pack/piece breakdown from cache
+//   const inventoryMap = await getAllInventory();
+
+//   return products.map((p: ProductWithPrice) => {
+//     const inventory = inventoryMap.get(p.id);
+//     return {
+//       id: p.id,
+//       name: p.name,
+//       sku: p.sku,
+//       piecesPerPack: p.piecesPerPack,
+//       packsPerBox: p.packsPerBox,
+//       allow: { box: p.allowSellBox, pack: p.allowSellPack, piece: p.allowSellPiece },
+//       price: {
+//         box: p.prices[0]?.sellPerBox != null ? Number(p.prices[0].sellPerBox) : null,
+//         pack: p.prices[0]?.sellPerPack != null ? Number(p.prices[0].sellPerPack) : null,
+//         piece: p.prices[0]?.sellPerPiece != null ? Number(p.prices[0].sellPerPiece) : null,
+//       },
+//       stockPieces: inventory?.totalPieces ?? 0,
+//       availableBoxes: inventory?.availableBoxes ?? 0,
+//       availablePacks: inventory?.availablePacks ?? 0,
+//       availablePieces: inventory?.availablePieces ?? 0,
+//     };
+//   });
+// }
+
+// /** Validate incoming cart lines */
+// const lineSchema = z.object({
+//   productId: z.string().min(1),
+//   unit: z.enum(["box", "pack", "piece"]),
+//   qty: z.number().positive(),
+//   pricePerUnit: z.number().min(0),
+// });
+// const linesSchema = z.array(lineSchema).min(1);
+
+// /** Finalize POS invoice atomically (order + FIFO consumption + invoice) */
+// export async function finalizePOS(formData: FormData) {
+//   "use server";
+
+//   try {
+//     const raw = String(formData.get("lines") || "[]");
+//     const cashierId = String(formData.get("cashierId") || "") || null;
+
+//     let lines: z.infer<typeof linesSchema>;
+//     try {
+//       lines = linesSchema.parse(JSON.parse(raw));
+//     } catch {
+//       throw new Error("Invalid cart");
+//     }
+
+//     // Load product data and allow flags
+//     const ids = [...new Set(lines.map((l) => l.productId))];
+//     const products = await prisma.product.findMany({
+//       where: { id: { in: ids } },
+//       select: {
+//         id: true,
+//         name: true,
+//         piecesPerPack: true,
+//         packsPerBox: true,
+//         allowSellBox: true,
+//         allowSellPack: true,
+//         allowSellPiece: true,
+//       },
+//     });
+
+//     // Explicitly type the Map to fix TypeScript errors
+//     type ProductInfo = typeof products[number];
+//     const pmap = new Map<string, ProductInfo>(
+//       products.map((p: ProductInfo) => [p.id, p])
+//     );
+
+//     if (pmap.size !== ids.length) throw new Error("One or more products not found");
+
+//     // Refresh cache before checking to get latest stock levels
+//     console.log("[POS] Refreshing inventory cache before stock check...");
+//     await refreshInventoryCache();
+
+//     // Quick pre-check for stock and allowed unit (best-effort; final check in tx)
+//     // Use cache instead of direct DB query for better performance
+//     const inventoryMap = await getInventoryMap(ids);
+//     const stock: Record<string, number> = {};
+//     for (const [productId, inv] of inventoryMap) {
+//       stock[productId] = inv.totalPieces;
+//     }
+//     // Ensure missing products show as 0 stock
+//     for (const id of ids) {
+//       if (!(id in stock)) stock[id] = 0;
+//     }
+
+//     // Check each line and collect detailed error info
+//     const stockErrors: string[] = [];
+//     for (const l of lines) {
+//       const p = pmap.get(l.productId)!;
+//       const allowed =
+//         l.unit === "box" ? p.allowSellBox : l.unit === "pack" ? p.allowSellPack : p.allowSellPiece;
+//       if (!allowed) throw new Error(`${p.name} cannot be sold by ${l.unit}`);
+
+//       const need = toPieces(l.qty, l.unit as Unit, p.piecesPerPack, p.packsPerBox);
+//       const available = stock[l.productId] ?? 0;
+
+//       if (available < need) {
+//         stockErrors.push(
+//           `${p.name}: Need ${need} pieces but only ${available} available`
+//         );
+//       }
+//       stock[l.productId] = available - need; // reserve locally
+//     }
+
+//     if (stockErrors.length > 0) {
+//       throw new Error(`Insufficient stock:\n${stockErrors.join('\n')}`);
+//     }
+
+//     // All-or-nothing
+//     let invoiceId = "";
+//     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+//     const order = await tx.order.create({
+//       data: {
+//         channel: "retail",
+//         status: "fulfilled",
+//         createdById: cashierId,
+//         notes: "POS sale",
+//         lines: {
+//           create: lines.map((l) => ({
+//             productId: l.productId,
+//             unit: l.unit,
+//             qty: l.qty,
+//             pricePerUnit: l.pricePerUnit,
+//           })),
+//         },
+//       },
+//       select: { id: true },
+//     });
+
+//     let subtotal = 0;
+//     for (const l of lines) {
+//       const p = pmap.get(l.productId)!;
+//       // consumeFIFOOnce consumes stock and records FIFO cost
+//       const { needPieces } = await consumeFIFOOnce(
+//         l.productId,
+//         l.qty,
+//         l.unit as Unit,
+//         p.piecesPerPack,
+//         p.packsPerBox,
+//         order.id, // sourceId is the order ID
+//         tx // Pass transaction client to ensure all operations are atomic
+//       );
+//       if (!Number.isFinite(needPieces) || needPieces <= 0) throw new Error("FIFO consumption failed");
+//       subtotal += l.qty * l.pricePerUnit;
+//     }
+
+//     // Create invoice with race-safe number (requires @unique on Invoice.number)
+//     let number = await nextInvoiceNumberTx(tx);
+//     try {
+//       const created = await tx.invoice.create({
+//         data: {
+//           orderId: order.id,
+//           number,
+//           subtotal: String(subtotal),
+//           tax: "0",
+//           roundOff: "0",
+//           grand: String(subtotal),
+//           pdfBytes: Buffer.from(""), // PDF to be generated later
+//         },
+//       });
+//       invoiceId = created.id;
+//     } catch (e: unknown) {
+//       if (e && typeof e === "object" && "code" in e && e.code === "P2002") {
+//         number = await nextInvoiceNumberTx(tx);
+//         const created = await tx.invoice.create({
+//           data: {
+//             orderId: order.id,
+//             number,
+//             subtotal: String(subtotal),
+//             tax: "0",
+//             roundOff: "0",
+//             grand: String(subtotal),
+//             pdfBytes: Buffer.from(""),
+//           },
+//         });
+//         invoiceId = created.id;
+//       } else {
+//         throw e;
+//       }
+//     }
+//   });
+
+//     // Generate PDF now
+//     const buf = await (await import("@/lib/pdf")).generateInvoicePdfBuffer(invoiceId);
+//     await prisma.invoice.update({
+//       where: { id: invoiceId },
+//       data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
+//     });
+
+//     // Refresh inventory cache immediately after sale
+//     console.log("[POS] Refreshing inventory cache after sale...");
+//     await refreshInventoryCache();
+
+//     // Revalidate all pages that display stock information
+//     revalidatePath("/admin/inventory", "layout");
+//     revalidatePath("/products", "layout"); // Revalidate all product pages
+//     revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+//     revalidatePath("/", "layout"); // Revalidate home page
+
+//     console.log("[POS] Cache refreshed and paths revalidated");
+
+//     redirect("/admin/inventory");
+//   } catch (error) {
+//     // Handle errors gracefully - log and redirect back to POS with error
+//     console.error("[POS] Error finalizing invoice:", error);
+//     const errorMessage = error instanceof Error ? error.message : "Failed to finalize invoice";
+
+//     // Redirect back to POS with error message
+//     redirect(`/pos?error=${encodeURIComponent(errorMessage)}`);
+//   }
+// }
+
+// /** Type the item the client consumes */
+// export type POSItem = Awaited<ReturnType<typeof productsForPOS>>[number];
+
 "use server";
 
 import { prisma } from "@/lib/prisma";
@@ -114,12 +376,9 @@ export async function finalizePOS(formData: FormData) {
 
     if (pmap.size !== ids.length) throw new Error("One or more products not found");
 
-    // Refresh cache before checking to get latest stock levels
-    console.log("[POS] Refreshing inventory cache before stock check...");
-    await refreshInventoryCache();
-
     // Quick pre-check for stock and allowed unit (best-effort; final check in tx)
-    // Use cache instead of direct DB query for better performance
+    // Use existing cache - it's fresh enough and refreshes automatically
+    // Removed pre-validation cache refresh for performance (was adding 250ms+ to checkout)
     const inventoryMap = await getInventoryMap(ids);
     const stock: Record<string, number> = {};
     for (const [productId, inv] of inventoryMap) {
@@ -227,25 +486,38 @@ export async function finalizePOS(formData: FormData) {
     }
   });
 
-    // Generate PDF now
-    const buf = await (await import("@/lib/pdf")).generateInvoicePdfBuffer(invoiceId);
-    await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
-    });
+    // Generate PDF and refresh cache in background (non-blocking for faster checkout)
+    // User doesn't need to wait for these operations
+    (async () => {
+      try {
+        console.log("[POS] Background: Starting PDF generation and cache refresh...");
 
-    // Refresh inventory cache immediately after sale
-    console.log("[POS] Refreshing inventory cache after sale...");
-    await refreshInventoryCache();
+        // Generate PDF
+        const buf = await (await import("@/lib/pdf")).generateInvoicePdfBuffer(invoiceId);
+        await prisma.invoice.update({
+          where: { id: invoiceId },
+          data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
+        });
+        console.log("[POS] Background: PDF generated successfully");
 
-    // Revalidate all pages that display stock information
-    revalidatePath("/admin/inventory", "layout");
-    revalidatePath("/products", "layout"); // Revalidate all product pages
-    revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
-    revalidatePath("/", "layout"); // Revalidate home page
+        // Refresh inventory cache
+        await refreshInventoryCache();
+        console.log("[POS] Background: Cache refreshed successfully");
 
-    console.log("[POS] Cache refreshed and paths revalidated");
+        // Revalidate all pages that display stock information
+        revalidatePath("/admin/inventory", "layout");
+        revalidatePath("/products", "layout");
+        revalidatePath("/(public)/products", "layout");
+        revalidatePath("/", "layout");
+        console.log("[POS] Background: Paths revalidated");
+      } catch (bgError) {
+        console.error("[POS] Background task error:", bgError);
+        // Don't throw - background tasks shouldn't break the checkout flow
+      }
+    })();
 
+    // Immediate redirect without waiting for PDF/cache (much faster checkout!)
+    console.log("[POS] Order created successfully, redirecting...");
     redirect("/admin/inventory");
   } catch (error) {
     // Handle errors gracefully - log and redirect back to POS with error

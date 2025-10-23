@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getInventoryMap } from "@/lib/inventoryCache";
 import AddToCart from "@/components/cart/AddToCart";
@@ -9,6 +10,26 @@ import { StockDisplay } from "@/components/product/StockDisplay";
 export const runtime = "nodejs";
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
+
+// Cached product fetcher to avoid duplicate queries between generateMetadata and page render
+const getProduct = cache(async (id: string) => {
+  return await prisma.product.findUnique({
+    where: { id, active: true, visibleOnMarketplace: true },
+    include: {
+      images: { select: { id: true }, orderBy: { id: "asc" } },
+      prices: {
+        where: {
+          channel: "marketplace",
+          activeFrom: { lte: new Date() },
+          OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
+        },
+        orderBy: { activeFrom: "desc" },
+        take: 1,
+        select: { sellPerBox: true, sellPerPack: true, sellPerPiece: true },
+      },
+    },
+  });
+});
 
 // Generate static params for top products (ISR for others)
 export async function generateStaticParams() {
@@ -32,25 +53,9 @@ export const revalidate = 3600; // Revalidate every hour
 // Generate metadata for SEO
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await prisma.product.findUnique({
-    where: { id, active: true, visibleOnMarketplace: true },
-    select: {
-      name: true,
-      sku: true,
-      description: true,
-      images: { select: { id: true }, take: 1 },
-      prices: {
-        where: {
-          channel: "marketplace",
-          activeFrom: { lte: new Date() },
-          OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
-        },
-        orderBy: { activeFrom: "desc" },
-        take: 1,
-        select: { sellPerPack: true, sellPerPiece: true, sellPerBox: true },
-      },
-    },
-  });
+
+  // Use cached product fetcher to avoid duplicate query
+  const product = await getProduct(id);
 
   if (!product) {
     return {
@@ -118,22 +123,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await prisma.product.findUnique({
-    where: { id, active: true, visibleOnMarketplace: true },
-    include: {
-      images: { select: { id: true }, orderBy: { id: "asc" } },
-      prices: {
-        where: {
-          channel: "marketplace",
-          activeFrom: { lte: new Date() },
-          OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
-        },
-        orderBy: { activeFrom: "desc" },
-        take: 1,
-        select: { sellPerBox: true, sellPerPack: true, sellPerPiece: true },
-      },
-    },
-  });
+
+  // Use cached product fetcher - this will reuse the query from generateMetadata
+  const product = await getProduct(id);
 
   if (!product) return <div>Not found</div>;
 

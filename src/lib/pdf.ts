@@ -1,5 +1,5 @@
-// Use standalone version that doesn't require filesystem access
-import PDFDocument from "pdfkit/js/pdfkit.standalone";
+// Import pdfkit - webpack alias handles the standalone version
+import PDFDocument from "pdfkit";
 import { prisma } from "@/lib/prisma";
 
 type Line = { name: string; unit: "box"|"pack"|"piece"; qty: number; price: number; total: number };
