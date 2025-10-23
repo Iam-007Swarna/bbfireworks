@@ -5,6 +5,7 @@ import { toPieces, Unit } from "@/lib/units";
 import { consumeFIFOOnce } from "@/lib/fifo";
 import { nextInvoiceNumber } from "@/lib/invoice";
 import { generateInvoicePdfBuffer } from "@/lib/pdf";
+import { refreshInventoryCache } from "@/lib/inventoryCache";
 
 /* ---------- server actions ---------- */
 
@@ -97,9 +98,21 @@ async function fulfillOrder(formData: FormData) {
 
   // Generate & persist PDF (outside transaction for better performance)
   const pdf = await generateInvoicePdfBuffer(invoiceId);
-  await prisma.invoice.update({ where: { id: invoiceId }, data: { pdfBytes: pdf, pdfMime: "application/pdf" } });
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { pdfBytes: Uint8Array.from(pdf), pdfMime: "application/pdf" } });
 
-  revalidatePath(`/admin/orders/${id}`);
+  // Refresh inventory cache after stock consumption
+  console.log("[Order Fulfillment] Refreshing inventory cache after order fulfillment...");
+  await refreshInventoryCache();
+
+  // Revalidate all pages that display stock information
+  revalidatePath(`/admin/orders/${id}`, "page");
+  revalidatePath("/admin/inventory", "layout");
+  revalidatePath("/products", "layout"); // Revalidate all product pages
+  revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+  revalidatePath("/", "layout"); // Revalidate home page
+
+  console.log("[Order Fulfillment] Cache refreshed and paths revalidated");
+
   redirect(`/admin/invoices/${invoiceId}`);
 }
 

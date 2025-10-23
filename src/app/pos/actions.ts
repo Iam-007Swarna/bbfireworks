@@ -8,7 +8,7 @@ import { toPieces, Unit } from "@/lib/units";
 import { consumeFIFOOnce } from "@/lib/fifo";
 import { nextInvoiceNumberTx } from "./helpers";
 import type { Prisma } from "@prisma/client";
-import { getAllInventory } from "@/lib/inventoryCache";
+import { getAllInventory, refreshInventoryCache, getInventoryMap } from "@/lib/inventoryCache";
 
 /** Server: fetch active products + active retail price */
 export async function productsForPOS() {
@@ -42,15 +42,6 @@ export async function productsForPOS() {
   // Explicitly type the products array to fix map errors
   type ProductWithPrice = typeof products[number];
 
-  // Current stock map
-  const grouped = await prisma.stockLedger.groupBy({
-    by: ["productId"],
-    _sum: { deltaPieces: true },
-    where: { productId: { in: products.map((p: ProductWithPrice) => p.id) } },
-  });
-  const stock: Record<string, number> = {};
-  for (const g of grouped) stock[g.productId] = g._sum.deltaPieces ?? 0;
-
   // Get inventory data with box/pack/piece breakdown from cache
   const inventoryMap = await getAllInventory();
 
@@ -68,7 +59,7 @@ export async function productsForPOS() {
         pack: p.prices[0]?.sellPerPack != null ? Number(p.prices[0].sellPerPack) : null,
         piece: p.prices[0]?.sellPerPiece != null ? Number(p.prices[0].sellPerPiece) : null,
       },
-      stockPieces: stock[p.id] ?? 0,
+      stockPieces: inventory?.totalPieces ?? 0,
       availableBoxes: inventory?.availableBoxes ?? 0,
       availablePacks: inventory?.availablePacks ?? 0,
       availablePieces: inventory?.availablePieces ?? 0,
@@ -122,13 +113,16 @@ export async function finalizePOS(formData: FormData) {
   if (pmap.size !== ids.length) throw new Error("One or more products not found");
 
   // Quick pre-check for stock and allowed unit (best-effort; final check in tx)
-  const grouped = await prisma.stockLedger.groupBy({
-    by: ["productId"],
-    _sum: { deltaPieces: true },
-    where: { productId: { in: ids } },
-  });
+  // Use cache instead of direct DB query for better performance
+  const inventoryMap = await getInventoryMap(ids);
   const stock: Record<string, number> = {};
-  for (const g of grouped) stock[g.productId] = g._sum.deltaPieces ?? 0;
+  for (const [productId, inv] of inventoryMap) {
+    stock[productId] = inv.totalPieces;
+  }
+  // Ensure missing products show as 0 stock
+  for (const id of ids) {
+    if (!(id in stock)) stock[id] = 0;
+  }
 
   for (const l of lines) {
     const p = pmap.get(l.productId)!;
@@ -219,10 +213,21 @@ export async function finalizePOS(formData: FormData) {
   const buf = await (await import("@/lib/pdf")).generateInvoicePdfBuffer(invoiceId);
   await prisma.invoice.update({
     where: { id: invoiceId },
-    data: { pdfBytes: buf, pdfMime: "application/pdf" },
+    data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
   });
 
-  revalidatePath("/admin/inventory");
+  // Refresh inventory cache immediately after sale
+  console.log("[POS] Refreshing inventory cache after sale...");
+  await refreshInventoryCache();
+
+  // Revalidate all pages that display stock information
+  revalidatePath("/admin/inventory", "layout");
+  revalidatePath("/products", "layout"); // Revalidate all product pages
+  revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+  revalidatePath("/", "layout"); // Revalidate home page
+
+  console.log("[POS] Cache refreshed and paths revalidated");
+
   redirect("/admin/inventory");
 }
 

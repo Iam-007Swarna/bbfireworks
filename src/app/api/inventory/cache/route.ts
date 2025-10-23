@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import {
   getCacheStats,
   refreshInventoryCache,
@@ -42,6 +43,14 @@ export async function POST(request: NextRequest) {
 
     if (action === "refresh") {
       await refreshInventoryCache();
+
+      // Revalidate all pages that display stock information
+      // Using layout type to revalidate all nested pages
+      revalidatePath("/admin/inventory", "layout");
+      revalidatePath("/products", "layout"); // Revalidate all product pages
+      revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+      revalidatePath("/", "layout"); // Revalidate home page and all nested pages
+
       const stats = getCacheStats();
 
       return NextResponse.json({

@@ -1,10 +1,30 @@
-import { getAllInventory, getCacheStats } from "@/lib/inventoryCache";
+import { getAllInventory, getCacheStats, refreshInventoryCache } from "@/lib/inventoryCache";
 import { Package, Database, Clock } from "lucide-react";
 import Link from "next/link";
 import { RefreshCacheButton } from "./RefreshCacheButton";
 import { CacheRefreshTimer } from "@/components/inventory/CacheRefreshTimer";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
+
+// Server Action for refreshing cache
+async function refreshCacheAction() {
+  "use server";
+
+  console.log("[InventoryCache] Manual refresh triggered...");
+
+  // Refresh the cache
+  await refreshInventoryCache();
+
+  // Revalidate all pages that display stock information
+  // Using layout type to revalidate all nested pages
+  revalidatePath("/admin/inventory", "layout");
+  revalidatePath("/products", "layout"); // This will revalidate all product pages
+  revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+  revalidatePath("/", "layout"); // Revalidate home page and all nested pages
+
+  console.log("[InventoryCache] Manual refresh complete, paths revalidated");
+}
 
 export default async function InventoryPage() {
   const cacheStats = getCacheStats();
@@ -26,7 +46,7 @@ export default async function InventoryPage() {
             lastRefresh={cacheStats.lastRefresh}
             cacheTTL={15 * 60 * 1000}
           />
-          <RefreshCacheButton />
+          <RefreshCacheButton refreshAction={refreshCacheAction} />
           <Link href="/admin/purchases/new" className="btn bg-blue-600 text-white hover:bg-blue-700 border-blue-600">
             + Receive Stock
           </Link>

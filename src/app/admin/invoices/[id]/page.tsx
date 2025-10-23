@@ -9,7 +9,7 @@ async function regen(formData: FormData) {
   const buf = await generateInvoicePdfBuffer(id);
   await prisma.invoice.update({
     where: { id },
-    data: { pdfBytes: buf, pdfMime: "application/pdf" },
+    data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
   });
   revalidatePath(`/admin/invoices/${id}`);
 }

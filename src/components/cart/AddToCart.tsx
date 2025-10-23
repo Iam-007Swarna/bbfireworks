@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ShoppingCart, Check } from "lucide-react";
+import { ShoppingCart, Check, Plus, Minus } from "lucide-react";
 import { addToCart } from "./useCart";
 import { Button } from "@/components/ui/Button";
 
@@ -13,6 +13,9 @@ type Props = {
   allowPack: boolean;
   allowPiece: boolean;
   defaultUnit?: "box" | "pack" | "piece";
+  availableBoxes?: number;
+  availablePacks?: number;
+  availablePieces?: number;
 };
 
 export default function AddToCart({
@@ -22,6 +25,9 @@ export default function AddToCart({
   allowPack,
   allowPiece,
   defaultUnit,
+  availableBoxes = 999,
+  availablePacks = 999,
+  availablePieces = 999,
 }: Props) {
   // Check if any unit is available
   const hasAnyUnit = allowBox || allowPack || allowPiece;
@@ -32,6 +38,22 @@ export default function AddToCart({
   const [qty, setQty] = useState<number>(1);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
+
+  // Get max quantity based on current unit
+  const getMaxQuantity = () => {
+    if (unit === "box") return availableBoxes;
+    if (unit === "pack") return availablePacks;
+    return availablePieces;
+  };
+
+  const maxQty = getMaxQuantity();
+
+  // Reset quantity when unit changes if current qty exceeds new max
+  useEffect(() => {
+    if (qty > maxQty) {
+      setQty(Math.min(qty, maxQty));
+    }
+  }, [unit, maxQty, qty]);
 
   // If no units are available (out of stock), show disabled state
   if (!hasAnyUnit) {
@@ -74,13 +96,43 @@ export default function AddToCart({
             </div>
           )}
         </div>
-        <input
-          className="input w-24"
-          type="number"
-          min={1}
-          value={qty}
-          onChange={(e) => setQty(Math.max(1, Number(e.target.value || "1")))}
-        />
+        {/* Quantity control with plus/minus buttons */}
+        <div className="flex items-center gap-1 border border-gray-300 dark:border-gray-600 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setQty(Math.max(1, qty - 1))}
+            disabled={qty <= 1}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Decrease quantity"
+          >
+            <Minus size={16} />
+          </button>
+          <input
+            className="w-16 text-center border-x border-gray-300 dark:border-gray-600 bg-transparent outline-none py-2"
+            type="number"
+            min={1}
+            max={maxQty}
+            value={qty}
+            onChange={(e) => {
+              const val = Number(e.target.value || "1");
+              setQty(Math.max(1, Math.min(maxQty, val)));
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setQty(Math.min(maxQty, qty + 1))}
+            disabled={qty >= maxQty}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Increase quantity"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+        {maxQty < 999 && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Max: {maxQty}
+          </span>
+        )}
         <Button
           onClick={handleAddToCart}
           className={`flex items-center gap-1.5 transition-all ${

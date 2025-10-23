@@ -628,6 +628,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           allowBox={product.allowSellBox && inStock && price?.sellPerBox != null && (inventory?.availableBoxes ?? 0) > 0}
           allowPack={product.allowSellPack && inStock && price?.sellPerPack != null && (inventory?.availablePacks ?? 0) > 0}
           allowPiece={product.allowSellPiece && inStock && price?.sellPerPiece != null && (inventory?.availablePieces ?? 0) > 0}
+          availableBoxes={inventory?.availableBoxes ?? 0}
+          availablePacks={inventory?.availablePacks ?? 0}
+          availablePieces={inventory?.availablePieces ?? 0}
         />
       </div>
     </div>

@@ -18,15 +18,16 @@ export async function GET(
   // If missing or empty, generate on the fly and persist
   if (!pdf || pdf.length === 0) {
     const buf = await generateInvoicePdfBuffer(id);
+    const uint8Array = Uint8Array.from(buf);
     await prisma.invoice.update({
       where: { id },
-      data: { pdfBytes: buf, pdfMime: "application/pdf" },
+      data: { pdfBytes: uint8Array, pdfMime: "application/pdf" },
     });
-    pdf = buf;
+    pdf = uint8Array;
     mime = "application/pdf";
   }
 
-  return new Response(Buffer.from(pdf), {
+  return new Response(pdf!, {
     headers: {
       "Content-Type": mime,
       "Content-Disposition": `inline; filename="invoice-${id}.pdf"`,

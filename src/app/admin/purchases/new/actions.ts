@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { refreshInventoryCache } from "@/lib/inventoryCache";
 
 type LineIn = {
   productId: string;
@@ -103,7 +104,7 @@ export async function createPurchase(formData: FormData) {
         supplierId: supplier.id,
         date: when,
         billNo: billNo || null,
-        attachment,
+        attachment: attachment ? Uint8Array.from(attachment) : undefined,
         attachmentMime,
         lines: {
           create: lines.map((l) => ({
@@ -149,6 +150,17 @@ export async function createPurchase(formData: FormData) {
     }
   });
 
-  revalidatePath("/admin/inventory");
+  // Refresh inventory cache immediately after purchase
+  console.log("[Purchase] Refreshing inventory cache after purchase...");
+  await refreshInventoryCache();
+
+  // Revalidate all pages that display stock information
+  revalidatePath("/admin/inventory", "layout");
+  revalidatePath("/products", "layout"); // Revalidate all product pages
+  revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+  revalidatePath("/", "layout"); // Revalidate home page
+
+  console.log("[Purchase] Cache refreshed and paths revalidated");
+
   redirect("/admin/inventory");
 }
