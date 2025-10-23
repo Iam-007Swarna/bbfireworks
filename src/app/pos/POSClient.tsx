@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { POSItem } from "./actions";
 import { finalizePOS } from "./actions";
 import { toPieces, Unit } from "@/lib/units";
+import { useToast } from "@/components/ui/Toast";
 
 type Row = {
   productId: string;
@@ -24,13 +26,52 @@ type Row = {
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 
+// Hook to detect when component is mounted (client-side only)
+function useMounted() {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  return mounted;
+}
+
 export default function POSClient({ initial }: { initial: POSItem[] }) {
   const [rows, setRows] = React.useState<Row[]>([]);
   const [search, setSearch] = React.useState("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const error = searchParams.get("error");
+  const { showToast } = useToast();
+  const mounted = useMounted();
+
+  // Clear error from URL when component mounts if error exists
+  React.useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        router.replace("/pos");
+      }, 10000); // Auto-dismiss after 10 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [error, router]);
 
   function addProduct(productId: string, unit: Unit) {
     const p = initial.find((x) => x.id === productId);
     if (!p) return;
+
+    // Calculate how much of this product is already in the cart
+    const existingPieces = rows
+      .filter((r) => r.productId === productId)
+      .reduce((sum, r) => sum + toPieces(r.qty, r.unit, r.piecesPerPack, r.packsPerBox), 0);
+
+    // Calculate how many pieces we're trying to add
+    const piecesToAdd = toPieces(1, unit, p.piecesPerPack, p.packsPerBox);
+
+    // Check if adding this would exceed available stock
+    if (existingPieces + piecesToAdd > p.stockPieces) {
+      showToast(
+        `Cannot add ${p.name}\nAlready have ${existingPieces} pieces in cart\nOnly ${p.stockPieces} pieces available`,
+        "error"
+      );
+      return;
+    }
 
     const price =
       unit === "box" ? p.price.box ?? 0 : unit === "pack" ? p.price.pack ?? 0 : p.price.piece ?? 0;
@@ -78,6 +119,28 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Error Alert */}
+      {error && (
+        <div className="card bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-800 dark:text-red-200 mb-2">
+                Error Finalizing Invoice
+              </h3>
+              <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-line">
+                {error}
+              </p>
+            </div>
+            <button
+              onClick={() => router.replace("/pos")}
+              className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Product Search Section */}
       <div className="card">
         <label className="block text-sm font-medium mb-2">Search Products</label>
@@ -88,31 +151,70 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-          {filteredProducts.slice(0, 12).map((p) => (
-            <div key={p.id} className="card p-3">
-              <div className="font-medium text-sm mb-1 truncate" title={p.name}>
-                {p.name}
+          {filteredProducts.slice(0, 12).map((p) => {
+            // Calculate how much of this product is already in the cart
+            const inCartPieces = rows
+              .filter((r) => r.productId === p.id)
+              .reduce((sum, r) => sum + toPieces(r.qty, r.unit, r.piecesPerPack, r.packsPerBox), 0);
+
+            // Check if we can add each unit type
+            const computedCanAddBox = inCartPieces + toPieces(1, "box", p.piecesPerPack, p.packsPerBox) <= p.stockPieces;
+            const computedCanAddPack = inCartPieces + toPieces(1, "pack", p.piecesPerPack, p.packsPerBox) <= p.stockPieces;
+            const computedCanAddPiece = inCartPieces + 1 <= p.stockPieces;
+
+            // Use stable values on first render (SSR/hydration), then switch to computed after mount
+            const canAddBox = mounted ? computedCanAddBox : true;
+            const canAddPack = mounted ? computedCanAddPack : true;
+            const canAddPiece = mounted ? computedCanAddPiece : true;
+
+            return (
+              <div key={p.id} className="card p-3">
+                <div className="font-medium text-sm mb-1 truncate" title={p.name}>
+                  {p.name}
+                </div>
+                <div className="text-xs opacity-60 mb-2">
+                  SKU: {p.sku}
+                  {mounted && inCartPieces > 0 && (
+                    <span className="ml-1 text-blue-600 dark:text-blue-400">
+                      ({inCartPieces} in cart)
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {p.allow.box && p.price.box != null && p.availableBoxes > 0 && (
+                    <button
+                      className="btn text-xs flex-1 disabled:opacity-40"
+                      onClick={() => addProduct(p.id, "box")}
+                      disabled={!canAddBox}
+                      title={!canAddBox ? "Not enough stock" : undefined}
+                    >
+                      + Box
+                    </button>
+                  )}
+                  {p.allow.pack && p.price.pack != null && p.availablePacks > 0 && (
+                    <button
+                      className="btn text-xs flex-1 disabled:opacity-40"
+                      onClick={() => addProduct(p.id, "pack")}
+                      disabled={!canAddPack}
+                      title={!canAddPack ? "Not enough stock" : undefined}
+                    >
+                      + Pack
+                    </button>
+                  )}
+                  {p.allow.piece && p.price.piece != null && p.availablePieces > 0 && (
+                    <button
+                      className="btn text-xs flex-1 disabled:opacity-40"
+                      onClick={() => addProduct(p.id, "piece")}
+                      disabled={!canAddPiece}
+                      title={!canAddPiece ? "Not enough stock" : undefined}
+                    >
+                      + Piece
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="text-xs opacity-60 mb-2">SKU: {p.sku}</div>
-              <div className="flex flex-wrap gap-1">
-                {p.allow.box && p.price.box != null && p.availableBoxes > 0 && (
-                  <button className="btn text-xs flex-1" onClick={() => addProduct(p.id, "box")}>
-                    + Box
-                  </button>
-                )}
-                {p.allow.pack && p.price.pack != null && p.availablePacks > 0 && (
-                  <button className="btn text-xs flex-1" onClick={() => addProduct(p.id, "pack")}>
-                    + Pack
-                  </button>
-                )}
-                {p.allow.piece && p.price.piece != null && p.availablePieces > 0 && (
-                  <button className="btn text-xs flex-1" onClick={() => addProduct(p.id, "piece")}>
-                    + Piece
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {filteredProducts.length === 0 && (
           <div className="text-center py-8 opacity-70">
@@ -183,8 +285,25 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                               min={1}
                               value={r.qty}
                               onChange={(e) => {
-                                const v = Math.max(1, Number(e.target.value || "1"));
-                                setRows((rs) => rs.map((x, idx) => (idx === i ? { ...x, qty: v } : x)));
+                                const newQty = Math.max(1, Number(e.target.value || "1"));
+
+                                // Validate: calculate total pieces for this product across all rows
+                                const otherRowsPieces = rows
+                                  .filter((row, idx) => row.productId === r.productId && idx !== i)
+                                  .reduce((sum, row) => sum + toPieces(row.qty, row.unit, row.piecesPerPack, row.packsPerBox), 0);
+
+                                const thisRowPieces = toPieces(newQty, r.unit, r.piecesPerPack, r.packsPerBox);
+                                const totalNeeded = otherRowsPieces + thisRowPieces;
+
+                                if (totalNeeded > r.stockPieces) {
+                                  showToast(
+                                    `Cannot set quantity to ${newQty}\nTotal needed: ${totalNeeded} pieces\nAvailable: ${r.stockPieces} pieces`,
+                                    "error"
+                                  );
+                                  return;
+                                }
+
+                                setRows((rs) => rs.map((x, idx) => (idx === i ? { ...x, qty: newQty } : x)));
                               }}
                             />
                             <button
@@ -192,6 +311,23 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                               className="btn px-2 py-1 text-xs"
                               onClick={() => {
                                 const newQty = r.qty + 1;
+
+                                // Validate: calculate total pieces for this product across all rows
+                                const otherRowsPieces = rows
+                                  .filter((row, idx) => row.productId === r.productId && idx !== i)
+                                  .reduce((sum, row) => sum + toPieces(row.qty, row.unit, row.piecesPerPack, row.packsPerBox), 0);
+
+                                const thisRowPieces = toPieces(newQty, r.unit, r.piecesPerPack, r.packsPerBox);
+                                const totalNeeded = otherRowsPieces + thisRowPieces;
+
+                                if (totalNeeded > r.stockPieces) {
+                                  showToast(
+                                    `Cannot increase quantity\nTotal needed: ${totalNeeded} pieces\nAvailable: ${r.stockPieces} pieces`,
+                                    "error"
+                                  );
+                                  return;
+                                }
+
                                 setRows((rs) => rs.map((x, idx) => (idx === i ? { ...x, qty: newQty } : x)));
                               }}
                             >
@@ -205,6 +341,23 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                             value={r.unit}
                             onChange={(e) => {
                               const newUnit = e.target.value as Unit;
+
+                              // Validate: calculate total pieces for this product across all rows with new unit
+                              const otherRowsPieces = rows
+                                .filter((row, idx) => row.productId === r.productId && idx !== i)
+                                .reduce((sum, row) => sum + toPieces(row.qty, row.unit, row.piecesPerPack, row.packsPerBox), 0);
+
+                              const thisRowPieces = toPieces(r.qty, newUnit, r.piecesPerPack, r.packsPerBox);
+                              const totalNeeded = otherRowsPieces + thisRowPieces;
+
+                              if (totalNeeded > r.stockPieces) {
+                                showToast(
+                                  `Cannot change unit to ${newUnit}\nTotal needed: ${totalNeeded} pieces\nAvailable: ${r.stockPieces} pieces`,
+                                  "error"
+                                );
+                                return;
+                              }
+
                               const newPrice =
                                 newUnit === "box"
                                   ? r.price.box ?? 0
@@ -254,7 +407,9 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                             }
                           />
                         </td>
-                        <td className="p-2 font-medium">{inr.format(lineTotal)}</td>
+                        <td className="p-2 font-medium" suppressHydrationWarning>
+                          {inr.format(lineTotal)}
+                        </td>
                         <td className="p-2">
                           <button className="btn text-xs" onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}>
                             Remove
@@ -271,12 +426,14 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
               <div className="flex justify-between items-center mb-2">
                 <span className="font-medium">Subtotal:</span>
-                <span className="text-lg font-semibold">{inr.format(subtotal)}</span>
+                <span className="text-lg font-semibold" suppressHydrationWarning>
+                  {inr.format(subtotal)}
+                </span>
               </div>
               {profit !== 0 && (
                 <div className="flex justify-between items-center mb-4 text-sm opacity-80">
                   <span>Estimated Profit:</span>
-                  <span className={profit >= 0 ? "text-green-600" : "text-red-600"}>
+                  <span className={profit >= 0 ? "text-green-600" : "text-red-600"} suppressHydrationWarning>
                     {inr.format(profit)}
                   </span>
                 </div>

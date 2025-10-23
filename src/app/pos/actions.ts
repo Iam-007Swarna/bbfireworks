@@ -80,64 +80,82 @@ const linesSchema = z.array(lineSchema).min(1);
 export async function finalizePOS(formData: FormData) {
   "use server";
 
-  const raw = String(formData.get("lines") || "[]");
-  const cashierId = String(formData.get("cashierId") || "") || null;
-
-  let lines: z.infer<typeof linesSchema>;
   try {
-    lines = linesSchema.parse(JSON.parse(raw));
-  } catch {
-    throw new Error("Invalid cart");
-  }
+    const raw = String(formData.get("lines") || "[]");
+    const cashierId = String(formData.get("cashierId") || "") || null;
 
-  // Load product data and allow flags
-  const ids = [...new Set(lines.map((l) => l.productId))];
-  const products = await prisma.product.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      piecesPerPack: true,
-      packsPerBox: true,
-      allowSellBox: true,
-      allowSellPack: true,
-      allowSellPiece: true,
-    },
-  });
-  
-  // Explicitly type the Map to fix TypeScript errors
-  type ProductInfo = typeof products[number];
-  const pmap = new Map<string, ProductInfo>(
-    products.map((p: ProductInfo) => [p.id, p])
-  );
-  
-  if (pmap.size !== ids.length) throw new Error("One or more products not found");
+    let lines: z.infer<typeof linesSchema>;
+    try {
+      lines = linesSchema.parse(JSON.parse(raw));
+    } catch {
+      throw new Error("Invalid cart");
+    }
 
-  // Quick pre-check for stock and allowed unit (best-effort; final check in tx)
-  // Use cache instead of direct DB query for better performance
-  const inventoryMap = await getInventoryMap(ids);
-  const stock: Record<string, number> = {};
-  for (const [productId, inv] of inventoryMap) {
-    stock[productId] = inv.totalPieces;
-  }
-  // Ensure missing products show as 0 stock
-  for (const id of ids) {
-    if (!(id in stock)) stock[id] = 0;
-  }
+    // Load product data and allow flags
+    const ids = [...new Set(lines.map((l) => l.productId))];
+    const products = await prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        name: true,
+        piecesPerPack: true,
+        packsPerBox: true,
+        allowSellBox: true,
+        allowSellPack: true,
+        allowSellPiece: true,
+      },
+    });
 
-  for (const l of lines) {
-    const p = pmap.get(l.productId)!;
-    const allowed =
-      l.unit === "box" ? p.allowSellBox : l.unit === "pack" ? p.allowSellPack : p.allowSellPiece;
-    if (!allowed) throw new Error("Unit not sellable for a product");
+    // Explicitly type the Map to fix TypeScript errors
+    type ProductInfo = typeof products[number];
+    const pmap = new Map<string, ProductInfo>(
+      products.map((p: ProductInfo) => [p.id, p])
+    );
 
-    const need = toPieces(l.qty, l.unit as Unit, p.piecesPerPack, p.packsPerBox);
-    if ((stock[l.productId] ?? 0) < need) throw new Error("Insufficient stock for one or more items");
-    stock[l.productId] = (stock[l.productId] ?? 0) - need; // reserve locally
-  }
+    if (pmap.size !== ids.length) throw new Error("One or more products not found");
 
-  // All-or-nothing
-  let invoiceId = "";
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // Refresh cache before checking to get latest stock levels
+    console.log("[POS] Refreshing inventory cache before stock check...");
+    await refreshInventoryCache();
+
+    // Quick pre-check for stock and allowed unit (best-effort; final check in tx)
+    // Use cache instead of direct DB query for better performance
+    const inventoryMap = await getInventoryMap(ids);
+    const stock: Record<string, number> = {};
+    for (const [productId, inv] of inventoryMap) {
+      stock[productId] = inv.totalPieces;
+    }
+    // Ensure missing products show as 0 stock
+    for (const id of ids) {
+      if (!(id in stock)) stock[id] = 0;
+    }
+
+    // Check each line and collect detailed error info
+    const stockErrors: string[] = [];
+    for (const l of lines) {
+      const p = pmap.get(l.productId)!;
+      const allowed =
+        l.unit === "box" ? p.allowSellBox : l.unit === "pack" ? p.allowSellPack : p.allowSellPiece;
+      if (!allowed) throw new Error(`${p.name} cannot be sold by ${l.unit}`);
+
+      const need = toPieces(l.qty, l.unit as Unit, p.piecesPerPack, p.packsPerBox);
+      const available = stock[l.productId] ?? 0;
+
+      if (available < need) {
+        stockErrors.push(
+          `${p.name}: Need ${need} pieces but only ${available} available`
+        );
+      }
+      stock[l.productId] = available - need; // reserve locally
+    }
+
+    if (stockErrors.length > 0) {
+      throw new Error(`Insufficient stock:\n${stockErrors.join('\n')}`);
+    }
+
+    // All-or-nothing
+    let invoiceId = "";
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await tx.order.create({
       data: {
         channel: "retail",
@@ -209,26 +227,34 @@ export async function finalizePOS(formData: FormData) {
     }
   });
 
-  // Generate PDF now
-  const buf = await (await import("@/lib/pdf")).generateInvoicePdfBuffer(invoiceId);
-  await prisma.invoice.update({
-    where: { id: invoiceId },
-    data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
-  });
+    // Generate PDF now
+    const buf = await (await import("@/lib/pdf")).generateInvoicePdfBuffer(invoiceId);
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { pdfBytes: Uint8Array.from(buf), pdfMime: "application/pdf" },
+    });
 
-  // Refresh inventory cache immediately after sale
-  console.log("[POS] Refreshing inventory cache after sale...");
-  await refreshInventoryCache();
+    // Refresh inventory cache immediately after sale
+    console.log("[POS] Refreshing inventory cache after sale...");
+    await refreshInventoryCache();
 
-  // Revalidate all pages that display stock information
-  revalidatePath("/admin/inventory", "layout");
-  revalidatePath("/products", "layout"); // Revalidate all product pages
-  revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
-  revalidatePath("/", "layout"); // Revalidate home page
+    // Revalidate all pages that display stock information
+    revalidatePath("/admin/inventory", "layout");
+    revalidatePath("/products", "layout"); // Revalidate all product pages
+    revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+    revalidatePath("/", "layout"); // Revalidate home page
 
-  console.log("[POS] Cache refreshed and paths revalidated");
+    console.log("[POS] Cache refreshed and paths revalidated");
 
-  redirect("/admin/inventory");
+    redirect("/admin/inventory");
+  } catch (error) {
+    // Handle errors gracefully - log and redirect back to POS with error
+    console.error("[POS] Error finalizing invoice:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to finalize invoice";
+
+    // Redirect back to POS with error message
+    redirect(`/pos?error=${encodeURIComponent(errorMessage)}`);
+  }
 }
 
 /** Type the item the client consumes */

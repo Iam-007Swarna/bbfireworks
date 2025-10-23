@@ -353,6 +353,7 @@
 //   return null;
 // }
 
+import { Suspense } from "react";
 import { productsForPOS } from "./actions";
 import POSClient from "./POSClient";
 
@@ -360,5 +361,9 @@ export const runtime = "nodejs";
 
 export default async function POSPage() {
   const items = await productsForPOS();
-  return <POSClient initial={items} />;
+  return (
+    <Suspense fallback={<div className="p-4">Loading...</div>}>
+      <POSClient initial={items} />
+    </Suspense>
+  );
 }
