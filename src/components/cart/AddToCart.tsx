@@ -53,7 +53,7 @@ export default function AddToCart({
     if (qty > maxQty) {
       setQty(Math.min(qty, maxQty));
     }
-  }, [unit, maxQty]);
+  }, [unit, maxQty, qty]);
 
   // If no units are available (out of stock), show disabled state
   if (!hasAnyUnit) {

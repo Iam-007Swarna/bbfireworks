@@ -143,7 +143,6 @@ export default function CartClient({
     return { price, total };
   });
 
-  const grand = totals.reduce((a, t) => a + (t.total ?? 0), 0);
   const itemCount = rows.reduce((a, r) => a + r.qty, 0);
 
   function getMaxQuantity(productId: string, unit: "box" | "pack" | "piece"): number {
@@ -206,7 +205,7 @@ export default function CartClient({
 
   const availableRows = rows.filter((r) => !r.isUnavailable);
   const unavailableRows = rows.filter((r) => r.isUnavailable);
-  const availableGrand = availableRows.reduce((sum, r, i) => {
+  const availableGrand = availableRows.reduce((sum, r) => {
     const price = totals[rows.indexOf(r)].total ?? 0;
     return sum + price;
   }, 0);

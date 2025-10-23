@@ -82,7 +82,7 @@ export async function POST(req: Request) {
       mime: "image/webp",
       width: outMeta.width ?? meta.width ?? 0,
       height: outMeta.height ?? meta.height ?? 0,
-      bytes: resized,
+      bytes: Uint8Array.from(resized),
     },
   });
 
