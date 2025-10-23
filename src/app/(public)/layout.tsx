@@ -6,7 +6,7 @@ import { SessionProviderWrapper } from "@/components/SessionProviderWrapper";
 import { CartIcon } from "@/components/cart/CartIcon";
 import { Footer } from "@/components/Footer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { Store } from "lucide-react";
+import { MarketplaceLink } from "@/components/MarketplaceLink";
 
 export default function PublicLayout({
   children,
@@ -21,13 +21,7 @@ export default function PublicLayout({
             BB Fireworks
           </Link>
           <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="btn flex items-center gap-1.5"
-              aria-label="Marketplace"
-            >
-              <Store size={18} />
-            </Link>
+            <MarketplaceLink />
             <CartIcon />
             <ThemeToggle />
             <PublicHeader />

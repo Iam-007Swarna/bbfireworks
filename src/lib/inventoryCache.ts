@@ -27,8 +27,8 @@ type CacheEntry = {
 // In-memory cache
 let inventoryCache: CacheEntry | null = null;
 
-// Cache TTL: 24 hours in milliseconds
-const CACHE_TTL = 24 * 60 * 60 * 1000;
+// Cache TTL: 15 minutes in milliseconds
+const CACHE_TTL = 15 * 60 * 1000;
 
 // Mutex to prevent concurrent cache refreshes
 let isRefreshing = false;
@@ -60,7 +60,7 @@ function calculateUnits(
 }
 
 /**
- * Check if cache is stale (older than 24 hours)
+ * Check if cache is stale (older than 15 minutes)
  */
 function isCacheStale(): boolean {
   if (!inventoryCache) return true;

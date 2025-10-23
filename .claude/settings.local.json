@@ -4,7 +4,10 @@
       "Bash(npm run build)",
       "Bash(find:*)",
       "Bash(ls:*)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npm start)"
     ],
     "deny": [],
     "ask": []

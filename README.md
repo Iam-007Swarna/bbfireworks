@@ -190,6 +190,8 @@ bbfireworks/
 
 ## Available Scripts
 
+### npm Scripts
+
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start development server with Turbopack |
@@ -200,6 +202,52 @@ bbfireworks/
 | `npm run db:migrate` | Create and run migrations (production) |
 | `npm run db:deploy` | Deploy migrations (CI/CD) |
 | `npm run seed` | Seed database with initial data |
+
+### Helper Scripts
+
+For convenience, use the included helper scripts:
+
+```bash
+# Quick start scripts
+./start-dev.sh          # Start development server
+./start-prod.sh         # Start production server
+
+# Comprehensive helper (recommended)
+./scripts.sh [command]  # See available commands below
+```
+
+**scripts.sh Commands:**
+- `dev` - Start development server
+- `prod` - Build and start production server
+- `build` - Build for production
+- `start` - Start production server (must build first)
+- `clean` - Clean build cache
+- `restart` - Kill all servers and restart production
+- `kill` - Kill all running Next.js servers
+- `check` - Check running processes and port status
+- `lint` - Run ESLint
+- `db:push` - Push Prisma schema to database
+- `db:migrate` - Run database migrations
+- `db:studio` - Open Prisma Studio
+- `help` - Show all available commands
+
+**Examples:**
+```bash
+# Start development
+./scripts.sh dev
+
+# Build and start production
+./scripts.sh prod
+
+# Restart production server (kills old, rebuilds, starts fresh)
+./scripts.sh restart
+
+# Check what's running
+./scripts.sh check
+
+# Clean cache and rebuild
+./scripts.sh clean && ./scripts.sh build
+```
 
 ## Key Features
 
@@ -382,6 +430,12 @@ Orders are sent via WhatsApp Web link with pre-filled message:
 
 ## Troubleshooting
 
+### Production Issues
+
+**Authentication not working in production?** See [Quick Fix Guide](./docs/QUICK_FIX_GUIDE.md)
+
+**Lucide-react icon errors?** Check the [Production Fixes Documentation](./docs/PRODUCTION_FIXES.md)
+
 ### Build Errors
 
 If you encounter Prisma-related errors:
@@ -403,6 +457,12 @@ npm run build
 - Check file size limits
 - Verify Sharp is installed correctly
 - Ensure proper permissions on temp directories
+
+### Common Production Errors
+
+For detailed troubleshooting of production-specific issues:
+- 📘 [Production Fixes & Troubleshooting Guide](./docs/PRODUCTION_FIXES.md) - Comprehensive documentation
+- 🚀 [Quick Fix Guide](./docs/QUICK_FIX_GUIDE.md) - Quick reference for common issues
 
 ## Contributing
 

@@ -8,6 +8,7 @@ import { toPieces, Unit } from "@/lib/units";
 import { consumeFIFOOnce } from "@/lib/fifo";
 import { nextInvoiceNumberTx } from "./helpers";
 import type { Prisma } from "@prisma/client";
+import { getAllInventory } from "@/lib/inventoryCache";
 
 /** Server: fetch active products + active retail price */
 export async function productsForPOS() {
@@ -50,20 +51,29 @@ export async function productsForPOS() {
   const stock: Record<string, number> = {};
   for (const g of grouped) stock[g.productId] = g._sum.deltaPieces ?? 0;
 
-  return products.map((p: ProductWithPrice) => ({
-    id: p.id,
-    name: p.name,
-    sku: p.sku,
-    piecesPerPack: p.piecesPerPack,
-    packsPerBox: p.packsPerBox,
-    allow: { box: p.allowSellBox, pack: p.allowSellPack, piece: p.allowSellPiece },
-    price: {
-      box: p.prices[0]?.sellPerBox != null ? Number(p.prices[0].sellPerBox) : null,
-      pack: p.prices[0]?.sellPerPack != null ? Number(p.prices[0].sellPerPack) : null,
-      piece: p.prices[0]?.sellPerPiece != null ? Number(p.prices[0].sellPerPiece) : null,
-    },
-    stockPieces: stock[p.id] ?? 0,
-  }));
+  // Get inventory data with box/pack/piece breakdown from cache
+  const inventoryMap = await getAllInventory();
+
+  return products.map((p: ProductWithPrice) => {
+    const inventory = inventoryMap.get(p.id);
+    return {
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      piecesPerPack: p.piecesPerPack,
+      packsPerBox: p.packsPerBox,
+      allow: { box: p.allowSellBox, pack: p.allowSellPack, piece: p.allowSellPiece },
+      price: {
+        box: p.prices[0]?.sellPerBox != null ? Number(p.prices[0].sellPerBox) : null,
+        pack: p.prices[0]?.sellPerPack != null ? Number(p.prices[0].sellPerPack) : null,
+        piece: p.prices[0]?.sellPerPiece != null ? Number(p.prices[0].sellPerPiece) : null,
+      },
+      stockPieces: stock[p.id] ?? 0,
+      availableBoxes: inventory?.availableBoxes ?? 0,
+      availablePacks: inventory?.availablePacks ?? 0,
+      availablePieces: inventory?.availablePieces ?? 0,
+    };
+  });
 }
 
 /** Validate incoming cart lines */
