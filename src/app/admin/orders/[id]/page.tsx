@@ -6,6 +6,25 @@ import { consumeFIFOOnce } from "@/lib/fifo";
 import { nextInvoiceNumber } from "@/lib/invoice";
 import { generateInvoicePdfBuffer } from "@/lib/pdf";
 import { refreshInventoryCache } from "@/lib/inventoryCache";
+import { FulfillOrderButton } from "@/components/FulfillOrderButton";
+
+/* ---------- types ---------- */
+
+type OutOfStockItem = {
+  productName: string;
+  sku: string;
+  needed: number;
+  available: number;
+  unit: string;
+};
+
+type FulfillmentResult = {
+  success: boolean;
+  error?: string;
+  outOfStockItems?: OutOfStockItem[];
+  customerPhone?: string;
+  customerName?: string;
+};
 
 /* ---------- server actions ---------- */
 
@@ -18,102 +37,132 @@ async function setStatus(formData: FormData) {
   revalidatePath(`/admin/orders/${id}`);
 }
 
-async function fulfillOrder(formData: FormData) {
+async function fulfillOrder(formData: FormData): Promise<FulfillmentResult> {
   "use server";
   const id = String(formData.get("orderId") || "");
-  if (!id) return;
+  if (!id) return { success: false, error: "Order ID is required" };
 
-  // Load order with lines + product conversion info
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      lines: {
-        include: {
-          product: { select: { id: true, piecesPerPack: true, packsPerBox: true } }
-        }
-      },
-      customer: true,
-    }
-  });
-  if (!order) throw new Error("Order not found");
-  if (order.status === "fulfilled") {
-    // already invoiced?
-    const inv = await prisma.invoice.findFirst({ where: { orderId: id }, select: { id: true } });
-    if (inv) redirect(`/admin/invoices/${inv.id}`);
-  }
-
-  // Validate stock for all lines
-  type FulfillOrderLine = typeof order.lines[number];
-  const prodIds = order.lines.map((l: FulfillOrderLine) => l.productId);
-  const grouped = await prisma.stockLedger.groupBy({
-    by: ["productId"], _sum: { deltaPieces: true }, where: { productId: { in: prodIds } }
-  });
-  const stock: Record<string, number> = {};
-  for (const g of grouped) stock[g.productId] = g._sum.deltaPieces ?? 0;
-
-  for (const l of order.lines as FulfillOrderLine[]) {
-    const need = toPieces(l.qty, l.unit as Unit, l.product.piecesPerPack, l.product.packsPerBox);
-    const available = stock[l.productId] ?? 0;
-    if (available < need) throw new Error(`Insufficient stock for a line item`);
-    stock[l.productId] = available - need; // reserve
-  }
-
-  // All operations in a transaction to ensure atomicity
-  let invoiceId = "";
-  await prisma.$transaction(async (tx) => {
-    // Consume FIFO for each line; compute subtotal
-    let subtotal = 0;
-    for (const l of order.lines as FulfillOrderLine[]) {
-      subtotal += Number(l.pricePerUnit) * l.qty;
-      await consumeFIFOOnce(
-        l.productId,
-        l.qty,
-        l.unit as Unit,
-        l.product.piecesPerPack,
-        l.product.packsPerBox,
-        order.id,
-        tx // Pass transaction client
-      );
-    }
-
-    // Create invoice
-    const invoiceNo = await nextInvoiceNumber();
-    const created = await tx.invoice.create({
-      data: {
-        orderId: order.id,
-        number: invoiceNo,
-        subtotal: String(subtotal),
-        tax: "0",
-        roundOff: "0",
-        grand: String(subtotal),
-        pdfBytes: Buffer.from(""), // filled after generation
-      },
-      select: { id: true }
+  try {
+    // Load order with lines + product conversion info
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        lines: {
+          include: {
+            product: { select: { id: true, name: true, sku: true, piecesPerPack: true, packsPerBox: true } }
+          }
+        },
+        customer: true,
+      }
     });
-    invoiceId = created.id;
+    if (!order) return { success: false, error: "Order not found" };
+    if (order.status === "fulfilled") {
+      // already invoiced?
+      const inv = await prisma.invoice.findFirst({ where: { orderId: id }, select: { id: true } });
+      if (inv) redirect(`/admin/invoices/${inv.id}`);
+    }
 
-    // Mark order fulfilled
-    await tx.order.update({ where: { id }, data: { status: "fulfilled" } });
-  });
+    // Validate stock for all lines
+    type FulfillOrderLine = typeof order.lines[number];
+    const prodIds = order.lines.map((l: FulfillOrderLine) => l.productId);
+    const grouped = await prisma.stockLedger.groupBy({
+      by: ["productId"], _sum: { deltaPieces: true }, where: { productId: { in: prodIds } }
+    });
+    const stock: Record<string, number> = {};
+    for (const g of grouped) stock[g.productId] = g._sum.deltaPieces ?? 0;
 
-  // Generate & persist PDF (outside transaction for better performance)
-  const pdf = await generateInvoicePdfBuffer(invoiceId);
-  await prisma.invoice.update({ where: { id: invoiceId }, data: { pdfBytes: Uint8Array.from(pdf), pdfMime: "application/pdf" } });
+    // Check for out of stock items
+    const outOfStockItems: OutOfStockItem[] = [];
+    for (const l of order.lines as FulfillOrderLine[]) {
+      const need = toPieces(l.qty, l.unit as Unit, l.product.piecesPerPack, l.product.packsPerBox);
+      const available = stock[l.productId] ?? 0;
+      if (available < need) {
+        outOfStockItems.push({
+          productName: l.product.name,
+          sku: l.product.sku,
+          needed: l.qty,
+          available: Math.floor(available / (l.unit === "piece" ? 1 : l.unit === "pack" ? l.product.piecesPerPack : l.product.piecesPerPack * l.product.packsPerBox)),
+          unit: l.unit,
+        });
+      } else {
+        stock[l.productId] = available - need; // reserve
+      }
+    }
 
-  // Refresh inventory cache after stock consumption
-  console.log("[Order Fulfillment] Refreshing inventory cache after order fulfillment...");
-  await refreshInventoryCache();
+    // If any items are out of stock, return error with details
+    if (outOfStockItems.length > 0) {
+      return {
+        success: false,
+        error: "Insufficient stock for some items",
+        outOfStockItems,
+        customerPhone: order.customer?.phone,
+        customerName: order.customer?.name,
+      };
+    }
 
-  // Revalidate all pages that display stock information
-  revalidatePath(`/admin/orders/${id}`, "page");
-  revalidatePath("/admin/inventory", "layout");
-  revalidatePath("/products", "layout"); // Revalidate all product pages
-  revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
-  revalidatePath("/", "layout"); // Revalidate home page
+    // All operations in a transaction to ensure atomicity
+    let invoiceId = "";
+    await prisma.$transaction(async (tx) => {
+      // Consume FIFO for each line; compute subtotal
+      let subtotal = 0;
+      for (const l of order.lines as FulfillOrderLine[]) {
+        subtotal += Number(l.pricePerUnit) * l.qty;
+        await consumeFIFOOnce(
+          l.productId,
+          l.qty,
+          l.unit as Unit,
+          l.product.piecesPerPack,
+          l.product.packsPerBox,
+          order.id,
+          tx // Pass transaction client
+        );
+      }
 
-  console.log("[Order Fulfillment] Cache refreshed and paths revalidated");
+      // Create invoice
+      const invoiceNo = await nextInvoiceNumber();
+      const created = await tx.invoice.create({
+        data: {
+          orderId: order.id,
+          number: invoiceNo,
+          subtotal: String(subtotal),
+          tax: "0",
+          roundOff: "0",
+          grand: String(subtotal),
+          pdfBytes: Buffer.from(""), // filled after generation
+        },
+        select: { id: true }
+      });
+      invoiceId = created.id;
 
-  redirect(`/admin/invoices/${invoiceId}`);
+      // Mark order fulfilled
+      await tx.order.update({ where: { id }, data: { status: "fulfilled" } });
+    });
+
+    // Generate & persist PDF (outside transaction for better performance)
+    const pdf = await generateInvoicePdfBuffer(invoiceId);
+    await prisma.invoice.update({ where: { id: invoiceId }, data: { pdfBytes: Uint8Array.from(pdf), pdfMime: "application/pdf" } });
+
+    // Refresh inventory cache after stock consumption
+    console.log("[Order Fulfillment] Refreshing inventory cache after order fulfillment...");
+    await refreshInventoryCache();
+
+    // Revalidate all pages that display stock information
+    revalidatePath(`/admin/orders/${id}`, "page");
+    revalidatePath("/admin/inventory", "layout");
+    revalidatePath("/products", "layout"); // Revalidate all product pages
+    revalidatePath("/(public)/products", "layout"); // Also revalidate the public route group
+    revalidatePath("/", "layout"); // Revalidate home page
+
+    console.log("[Order Fulfillment] Cache refreshed and paths revalidated");
+
+    redirect(`/admin/invoices/${invoiceId}`);
+  } catch (error) {
+    console.error("[Order Fulfillment Error]", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
 }
 
 async function cancelOrder(formData: FormData) {
@@ -205,10 +254,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
           </form>
         )}
         {canFulfill && (
-          <form action={fulfillOrder}>
-            <input type="hidden" name="orderId" value={row.id} />
-            <button className="btn" type="submit">Fulfill & Generate Invoice</button>
-          </form>
+          <FulfillOrderButton orderId={row.id} fulfillOrder={fulfillOrder} />
         )}
         {row.status !== "cancelled" && !row.invoice && (
           <form action={cancelOrder}>
