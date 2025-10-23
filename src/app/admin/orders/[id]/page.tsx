@@ -7,6 +7,7 @@ import { nextInvoiceNumber } from "@/lib/invoice";
 import { generateInvoicePdfBuffer } from "@/lib/pdf";
 import { refreshInventoryCache } from "@/lib/inventoryCache";
 import { FulfillOrderButton } from "@/components/FulfillOrderButton";
+import { formatDateTime } from "@/lib/date";
 
 /* ---------- types ---------- */
 
@@ -199,7 +200,7 @@ export default async function OrderDetail({ params }: { params: Promise<{ id: st
       <div className="card p-3 grid sm:grid-cols-2 gap-2">
         <div>Status: <span className="badge">{row.status}</span></div>
         <div>Channel: <b>{row.channel}</b></div>
-        <div>Created: {new Date(row.createdAt).toLocaleString()}</div>
+        <div>Created: {formatDateTime(row.createdAt)}</div>
         <div>Subtotal (lines): <b>₹{subtotal.toFixed(2)}</b></div>
         {row.invoice && (
           <div className="sm:col-span-2">

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { formatDateTime } from "@/lib/date";
 
 export default async function InvoicesList() {
   const rows = await prisma.invoice.findMany({
@@ -41,7 +42,7 @@ export default async function InvoicesList() {
               {rows.map((r: InvoiceRow) => (
                 <tr key={r.id}>
                   <td className="p-2">{r.number}</td>
-                  <td className="p-2">{new Date(r.date).toLocaleString()}</td>
+                  <td className="p-2">{formatDateTime(r.date)}</td>
                   <td className="p-2">
                     {r.order?.customer?.name ?? "—"}
                     {r.order?.customer?.phone ? (

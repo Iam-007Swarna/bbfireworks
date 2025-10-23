@@ -4,6 +4,7 @@ import Link from "next/link";
 import { RefreshCacheButton } from "./RefreshCacheButton";
 import { CacheRefreshTimer } from "@/components/inventory/CacheRefreshTimer";
 import { revalidatePath } from "next/cache";
+import { formatDateTime } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ export default async function InventoryPage() {
             </div>
             <div className="font-semibold mt-1 text-sm">
               {cacheStats.lastRefresh
-                ? new Date(cacheStats.lastRefresh).toLocaleString()
+                ? formatDateTime(cacheStats.lastRefresh)
                 : "Never"}
             </div>
           </div>

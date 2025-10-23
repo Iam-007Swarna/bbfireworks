@@ -1,6 +1,7 @@
 // Import pdfkit - webpack alias handles the standalone version
 import PDFDocument from "pdfkit";
 import { prisma } from "@/lib/prisma";
+import { formatDateForPDF } from "@/lib/date";
 
 type Line = { name: string; unit: "box"|"pack"|"piece"; qty: number; price: number; total: number };
 type InvoiceData = {
@@ -38,7 +39,7 @@ function makeDoc(data: InvoiceData, businessName: string, businessPhone?: string
   if (businessPhone) doc.fontSize(10).fillColor("#444").text(`WhatsApp: ${businessPhone}`);
   doc.moveDown(0.5);
   doc.fillColor("#000").fontSize(12).text(`Invoice: ${data.number}`);
-  doc.text(`Date: ${data.date.toLocaleDateString()}`);
+  doc.text(`Date: ${formatDateForPDF(data.date)}`);
 
   // Customer (optional)
   if (data.customer?.name) {

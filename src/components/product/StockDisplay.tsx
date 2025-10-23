@@ -1,4 +1,5 @@
 import { Package, Clock } from "lucide-react";
+import { formatTimeShort } from "@/lib/date";
 
 type StockDisplayProps = {
   availableBoxes: number;
@@ -92,11 +93,7 @@ export function StockDisplay({
               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                 <Clock size={12} />
                 <span>
-                  Updated: {new Date(lastUpdated).toLocaleTimeString('en-IN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
+                  Updated: {formatTimeShort(lastUpdated)}
                 </span>
               </div>
             </div>

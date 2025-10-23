@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { generateInvoicePdfBuffer } from "@/lib/pdf";
 import { revalidatePath } from "next/cache";
+import { formatDateTime } from "@/lib/date";
 
 async function regen(formData: FormData) {
   "use server";
@@ -42,7 +43,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
       <h1 className="text-xl font-semibold">Invoice {inv.number}</h1>
 
       <div className="card p-3 space-y-1">
-        <div>Date: <b>{new Date(inv.date).toLocaleString()}</b></div>
+        <div>Date: <b>{formatDateTime(inv.date)}</b></div>
         <div>Customer: <b>{inv.order?.customer?.name ?? "—"}</b></div>
         {inv.order?.customer?.phone && <div>Phone: {inv.order.customer.phone}</div>}
         {inv.order?.customer?.address && <div>Address: {inv.order.customer.address}</div>}

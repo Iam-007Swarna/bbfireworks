@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { formatDateTime } from "@/lib/date";
 
 export default async function OrdersList() {
   const rows = await prisma.order.findMany({
@@ -49,7 +50,7 @@ export default async function OrdersList() {
             <tbody>
               {rows.map((r: OrderRow) => (
                 <tr key={r.id}>
-                  <td className="p-2">{new Date(r.createdAt).toLocaleString()}</td>
+                  <td className="p-2">{formatDateTime(r.createdAt)}</td>
                   <td className="p-2">{r.channel}</td>
                   <td className="p-2">
                     <span className="badge">{r.status}</span>
