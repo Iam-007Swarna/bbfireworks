@@ -81,6 +81,22 @@ body {
     @apply bg-white text-black dark:bg-black dark:text-white;
   }
 
+  /* Fix date picker calendar visibility in dark mode */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"] {
+    color-scheme: light;
+  }
+
+  .dark input[type="date"],
+  .dark input[type="datetime-local"],
+  .dark input[type="time"],
+  [data-theme="dark"] input[type="date"],
+  [data-theme="dark"] input[type="datetime-local"],
+  [data-theme="dark"] input[type="time"] {
+    color-scheme: dark;
+  }
+
   .card {
     @apply rounded-lg border p-4 bg-transparent
            border-gray-200 dark:border-gray-800;
