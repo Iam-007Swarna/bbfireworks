@@ -80,6 +80,7 @@
 // }
 
 import { prisma } from "@/lib/prisma";
+import { getAllInventory } from "@/lib/inventoryCache";
 import CartClient from "./CartClient";
 
 export default async function CartPage() {
@@ -110,11 +111,27 @@ export default async function CartPage() {
     },
   });
 
+  // Fetch inventory data from cache
+  const inventoryMap = await getAllInventory();
+
   const priceMap: Record<
     string,
     { box: number | null; pack: number | null; piece: number | null }
   > = {};
   const imageMap: Record<string, string | null> = {};
+  const inventoryData: Record<
+    string,
+    { availableBoxes: number; availablePacks: number; availablePieces: number }
+  > = {};
+  const productInfoMap: Record<
+    string,
+    {
+      name: string;
+      allowSellBox: boolean;
+      allowSellPack: boolean;
+      allowSellPiece: boolean;
+    }
+  > = {};
 
   for (const p of products) {
     const pr = p.prices[0];
@@ -124,7 +141,28 @@ export default async function CartPage() {
       piece: pr?.sellPerPiece ? Number(pr.sellPerPiece) : null,
     };
     imageMap[p.id] = p.images[0]?.id ?? null;
+
+    const inventory = inventoryMap.get(p.id);
+    inventoryData[p.id] = {
+      availableBoxes: inventory?.availableBoxes ?? 0,
+      availablePacks: inventory?.availablePacks ?? 0,
+      availablePieces: inventory?.availablePieces ?? 0,
+    };
+
+    productInfoMap[p.id] = {
+      name: p.name,
+      allowSellBox: p.allowSellBox,
+      allowSellPack: p.allowSellPack,
+      allowSellPiece: p.allowSellPiece,
+    };
   }
 
-  return <CartClient priceMap={priceMap} imageMap={imageMap} />;
+  return (
+    <CartClient
+      priceMap={priceMap}
+      imageMap={imageMap}
+      inventoryData={inventoryData}
+      productInfoMap={productInfoMap}
+    />
+  );
 }
