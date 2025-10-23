@@ -488,6 +488,7 @@ export async function finalizePOS(formData: FormData) {
 
     // Generate PDF and refresh cache in background (non-blocking for faster checkout)
     // User doesn't need to wait for these operations
+    // Note: Cannot use revalidatePath in background tasks (Next.js restriction)
     (async () => {
       try {
         console.log("[POS] Background: Starting PDF generation and cache refresh...");
@@ -500,27 +501,32 @@ export async function finalizePOS(formData: FormData) {
         });
         console.log("[POS] Background: PDF generated successfully");
 
-        // Refresh inventory cache
+        // Refresh inventory cache (cache auto-updates, so pages will pick up changes)
         await refreshInventoryCache();
         console.log("[POS] Background: Cache refreshed successfully");
-
-        // Revalidate all pages that display stock information
-        revalidatePath("/admin/inventory", "layout");
-        revalidatePath("/products", "layout");
-        revalidatePath("/(public)/products", "layout");
-        revalidatePath("/", "layout");
-        console.log("[POS] Background: Paths revalidated");
       } catch (bgError) {
         console.error("[POS] Background task error:", bgError);
         // Don't throw - background tasks shouldn't break the checkout flow
       }
     })();
 
-    // Immediate redirect without waiting for PDF/cache (much faster checkout!)
+    // Revalidate paths synchronously before redirect (required for ISR cache invalidation)
+    revalidatePath("/admin/inventory", "layout");
+    revalidatePath("/products", "layout");
+    revalidatePath("/(public)/products", "layout");
+    revalidatePath("/", "layout");
+
+    // Immediate redirect (much faster checkout!)
     console.log("[POS] Order created successfully, redirecting...");
     redirect("/admin/inventory");
   } catch (error) {
-    // Handle errors gracefully - log and redirect back to POS with error
+    // Check if this is a redirect (NEXT_REDIRECT) - if so, re-throw it
+    if (error && typeof error === "object" && "digest" in error &&
+        typeof error.digest === "string" && error.digest.startsWith("NEXT_REDIRECT")) {
+      throw error;
+    }
+
+    // Handle other errors gracefully - log and redirect back to POS with error
     console.error("[POS] Error finalizing invoice:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to finalize invoice";
 
