@@ -313,8 +313,7 @@
 
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { stockMap } from "@/lib/stock";
-import { getInventory } from "@/lib/inventoryCache";
+import { getInventoryMap } from "@/lib/inventoryCache";
 import AddToCart from "@/components/cart/AddToCart";
 import { ImageGallery } from "@/components/product/ImageGallery";
 import { LowStockAlert } from "@/components/inventory/LowStockAlert";
@@ -477,13 +476,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   const finalRecommendations = recommendations;
 
-  const allProductIds = [product.id, ...finalRecommendations.map(p => p.id)];
-  const stock = await stockMap(allProductIds);
-  const inStockPieces = stock[product.id] ?? 0;
-  const inStock = inStockPieces > 0;
-
   // Get detailed inventory from cache (with box/pack/piece breakdown)
-  const inventory = await getInventory(product.id);
+  const allProductIds = [product.id, ...finalRecommendations.map(p => p.id)];
+  const inventoryData = await getInventoryMap(allProductIds);
+
+  const inventory = inventoryData.get(product.id);
+  const inStockPieces = inventory?.totalPieces ?? 0;
+  const inStock = inStockPieces > 0;
 
   const price = product.prices[0] ?? null;
 
@@ -578,6 +577,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             piecesPerPack={inventory.piecesPerPack}
             packsPerBox={inventory.packsPerBox}
             compact={false}
+            lastUpdated={inventory.lastUpdated}
           />
         )}
 
@@ -625,9 +625,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <AddToCart
           productId={product.id}
           name={product.name}
-          allowBox={product.allowSellBox && inStock && price?.sellPerBox != null}
-          allowPack={product.allowSellPack && inStock && price?.sellPerPack != null}
-          allowPiece={product.allowSellPiece && inStock && price?.sellPerPiece != null}
+          allowBox={product.allowSellBox && inStock && price?.sellPerBox != null && (inventory?.availableBoxes ?? 0) > 0}
+          allowPack={product.allowSellPack && inStock && price?.sellPerPack != null && (inventory?.availablePacks ?? 0) > 0}
+          allowPiece={product.allowSellPiece && inStock && price?.sellPerPiece != null && (inventory?.availablePieces ?? 0) > 0}
         />
       </div>
     </div>
@@ -640,7 +640,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </h2>
         <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
           {finalRecommendations.map((p) => {
-            const recInStock = (stock[p.id] ?? 0) > 0;
+            const recInventory = inventoryData.get(p.id);
+            const recInStock = (recInventory?.totalPieces ?? 0) > 0;
             const imgId = p.images[0]?.id;
             const recPrice = p.prices[0];
 

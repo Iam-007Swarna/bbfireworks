@@ -22,7 +22,10 @@ export default async function InventoryPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-semibold">Inventory Overview</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <CacheRefreshTimer lastRefresh={cacheStats.lastRefresh} />
+          <CacheRefreshTimer
+            lastRefresh={cacheStats.lastRefresh}
+            cacheTTL={15 * 60 * 1000}
+          />
           <RefreshCacheButton />
           <Link href="/admin/purchases/new" className="btn bg-blue-600 text-white hover:bg-blue-700 border-blue-600">
             + Receive Stock
@@ -79,7 +82,7 @@ export default async function InventoryPage() {
         {cacheStats.isStale && (
           <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              ⚠️ Cache is stale (older than 24 hours). Consider refreshing for accurate data.
+              ⚠️ Cache is stale (older than 15 minutes). Consider refreshing for accurate data.
             </p>
           </div>
         )}
@@ -207,8 +210,8 @@ export default async function InventoryPage() {
       {/* Info Box */}
       <div className="card p-4 bg-gray-50 dark:bg-gray-800/50">
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          <strong>📊 Cache System:</strong> Inventory data is cached in memory and refreshes automatically every 24
-          hours to minimize database load. Use &quot;Refresh Cache&quot; to manually update after stock changes.
+          <strong>📊 Cache System:</strong> Inventory data is cached in memory and refreshes automatically every 15
+          minutes to minimize database load. Use &quot;Refresh Cache&quot; to manually update after stock changes.
         </p>
       </div>
     </div>

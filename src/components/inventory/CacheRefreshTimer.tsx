@@ -5,14 +5,14 @@ import { Clock, RefreshCw } from "lucide-react";
 
 type CacheRefreshTimerProps = {
   lastRefresh: Date | null;
-  cacheTTL?: number; // in milliseconds, defaults to 24 hours
+  cacheTTL?: number; // in milliseconds, defaults to 15 minutes
   showIcon?: boolean;
   compact?: boolean;
 };
 
 export function CacheRefreshTimer({
   lastRefresh,
-  cacheTTL = 24 * 60 * 60 * 1000, // 24 hours default
+  cacheTTL = 15 * 60 * 1000, // 15 minutes default
   showIcon = true,
   compact = false,
 }: CacheRefreshTimerProps) {

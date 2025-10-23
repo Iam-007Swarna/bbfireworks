@@ -1,4 +1,4 @@
-import { Package } from "lucide-react";
+import { Package, Clock } from "lucide-react";
 
 type StockDisplayProps = {
   availableBoxes: number;
@@ -7,6 +7,7 @@ type StockDisplayProps = {
   piecesPerPack: number;
   packsPerBox: number;
   compact?: boolean;
+  lastUpdated?: Date;
 };
 
 export function StockDisplay({
@@ -16,6 +17,7 @@ export function StockDisplay({
   piecesPerPack,
   packsPerBox,
   compact = false,
+  lastUpdated,
 }: StockDisplayProps) {
   const hasStock = availableBoxes > 0 || availablePacks > 0 || availablePieces > 0;
 
@@ -49,40 +51,57 @@ export function StockDisplay({
       </div>
 
       {hasStock ? (
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          {availableBoxes > 0 && (
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Boxes</span>
-              <span className="font-semibold text-green-700 dark:text-green-400">
-                {availableBoxes}
-              </span>
-              <span className="text-xs text-gray-400">
-                ({packsPerBox} packs/box)
-              </span>
-            </div>
-          )}
+        <>
+          <div className="grid grid-cols-3 gap-2 text-sm">
+            {availableBoxes > 0 && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Boxes</span>
+                <span className="font-semibold text-green-700 dark:text-green-400">
+                  {availableBoxes}
+                </span>
+                <span className="text-xs text-gray-400">
+                  ({packsPerBox} packs/box)
+                </span>
+              </div>
+            )}
 
-          {availablePacks > 0 && (
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Packs</span>
-              <span className="font-semibold text-green-700 dark:text-green-400">
-                {availablePacks}
-              </span>
-              <span className="text-xs text-gray-400">
-                ({piecesPerPack} pcs/pack)
-              </span>
-            </div>
-          )}
+            {availablePacks > 0 && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Packs</span>
+                <span className="font-semibold text-green-700 dark:text-green-400">
+                  {availablePacks}
+                </span>
+                <span className="text-xs text-gray-400">
+                  ({piecesPerPack} pcs/pack)
+                </span>
+              </div>
+            )}
 
-          {availablePieces > 0 && (
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Pieces</span>
-              <span className="font-semibold text-green-700 dark:text-green-400">
-                {availablePieces}
-              </span>
+            {availablePieces > 0 && (
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Pieces</span>
+                <span className="font-semibold text-green-700 dark:text-green-400">
+                  {availablePieces}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {lastUpdated && (
+            <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                <Clock size={12} />
+                <span>
+                  Updated: {new Date(lastUpdated).toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </span>
+              </div>
             </div>
           )}
-        </div>
+        </>
       ) : (
         <div className="text-sm text-red-600 dark:text-red-400 font-medium">
           Currently out of stock

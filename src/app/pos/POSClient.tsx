@@ -18,6 +18,9 @@ type Row = {
   packsPerBox: number;
   allow: { box: boolean; pack: boolean; piece: boolean };
   price: { box: number | null; pack: number | null; piece: number | null };
+  availableBoxes: number;
+  availablePacks: number;
+  availablePieces: number;
 };
 
 const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
@@ -49,6 +52,9 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
         packsPerBox: p.packsPerBox,
         allow: p.allow,
         price: p.price,
+        availableBoxes: p.availableBoxes,
+        availablePacks: p.availablePacks,
+        availablePieces: p.availablePieces,
       },
     ]);
   }
@@ -120,7 +126,7 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                       SKU: {p.sku}
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {p.allow.box && p.price.box != null && (
+                      {p.allow.box && p.price.box != null && p.availableBoxes > 0 && (
                         <button
                           className="btn text-xs flex-1"
                           onClick={() => addProduct(p.id, "box")}
@@ -128,7 +134,7 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                           + Box
                         </button>
                       )}
-                      {p.allow.pack && p.price.pack != null && (
+                      {p.allow.pack && p.price.pack != null && p.availablePacks > 0 && (
                         <button
                           className="btn text-xs flex-1"
                           onClick={() => addProduct(p.id, "pack")}
@@ -136,7 +142,7 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                           + Pack
                         </button>
                       )}
-                      {p.allow.piece && p.price.piece != null && (
+                      {p.allow.piece && p.price.piece != null && p.availablePieces > 0 && (
                         <button
                           className="btn text-xs flex-1"
                           onClick={() => addProduct(p.id, "piece")}
@@ -247,14 +253,14 @@ export default function POSClient({ initial }: { initial: POSItem[] }) {
                               );
                             }}
                           >
-                            <option value="box" disabled={!r.allow.box || r.price.box == null}>
-                              Box {r.price.box == null ? "(No price)" : ""}
+                            <option value="box" disabled={!r.allow.box || r.price.box == null || r.availableBoxes === 0}>
+                              Box {r.price.box == null ? "(No price)" : r.availableBoxes === 0 ? "(Out of stock)" : ""}
                             </option>
-                            <option value="pack" disabled={!r.allow.pack || r.price.pack == null}>
-                              Pack {r.price.pack == null ? "(No price)" : ""}
+                            <option value="pack" disabled={!r.allow.pack || r.price.pack == null || r.availablePacks === 0}>
+                              Pack {r.price.pack == null ? "(No price)" : r.availablePacks === 0 ? "(Out of stock)" : ""}
                             </option>
-                            <option value="piece" disabled={!r.allow.piece || r.price.piece == null}>
-                              Piece {r.price.piece == null ? "(No price)" : ""}
+                            <option value="piece" disabled={!r.allow.piece || r.price.piece == null || r.availablePieces === 0}>
+                              Piece {r.price.piece == null ? "(No price)" : r.availablePieces === 0 ? "(Out of stock)" : ""}
                             </option>
                           </select>
                         </td>
